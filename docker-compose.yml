@@ -1,0 +1,68 @@
+version: '3.8'
+
+services:
+  db:
+    image: mysql:8.0
+    command: --default-authentication-plugin=mysql_native_password
+    restart: always
+    environment:
+      MYSQL_DATABASE: meetmind
+      MYSQL_ROOT_PASSWORD: rootpassword
+    volumes:
+      - mysql_data:/var/lib/mysql
+    ports:
+      - "13306:3306"
+
+  redis:
+    image: redis:7-alpine
+    restart: always
+    ports:
+      - "6379:6379"
+
+  backend:
+    build: ./backend
+    command: uvicorn main:app --host 0.0.0.0 --port 8000 --reload
+    volumes:
+      - ./backend:/app
+      - app_media:/app/media
+    env_file:
+      - .env
+    environment:
+      DATABASE_URL: mysql+pymysql://root:rootpassword@db/meetmind
+      CELERY_BROKER_URL: redis://redis:6379/0
+      CELERY_RESULT_BACKEND: redis://redis:6379/0
+    ports:
+      - "18000:8000"
+    depends_on:
+      - db
+      - redis
+
+  worker:
+    build: ./backend
+    command: celery -A celery_worker.celery_app worker --loglevel=info
+    volumes:
+      - ./backend:/app
+      - app_media:/app/media
+    env_file:
+      - .env
+    environment:
+      DATABASE_URL: mysql+pymysql://root:rootpassword@db/meetmind
+      CELERY_BROKER_URL: redis://redis:6379/0
+      CELERY_RESULT_BACKEND: redis://redis:6379/0
+    depends_on:
+      - db
+      - redis
+
+  frontend:
+    build: ./frontend
+    ports:
+      - "80:80"
+    depends_on:
+      - backend
+
+volumes:
+  mysql_data:
+    external: true
+    name: meetmind_mysql_data
+  app_media:
+    name: meetmind_app_media

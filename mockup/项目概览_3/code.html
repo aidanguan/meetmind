@@ -1,0 +1,317 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="zh-CN"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>项目概览 - 会议转录</title>
+<!-- Material Symbols -->
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<!-- Google Fonts -->
+<link href="https://fonts.googleapis.com" rel="preconnect"/>
+<link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;700;800&amp;family=Noto+Sans:wght@400;500;700;900&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<!-- Tailwind CSS -->
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<script id="tailwind-config">
+      tailwind.config = {
+        darkMode: "class",
+        theme: {
+          extend: {
+            colors: {
+              "primary": "#135bec",
+              "background-light": "#f6f6f8",
+              "background-dark": "#101622",
+              "surface-dark": "#161e2e",
+              "surface-light": "#ffffff",
+              "border-dark": "#232f48",
+            },
+            fontFamily: {
+              "display": ["Manrope", "Noto Sans", "sans-serif"]
+            },
+            borderRadius: {"DEFAULT": "0.25rem", "lg": "0.5rem", "xl": "0.75rem", "full": "9999px"},
+          },
+        },
+      }
+    </script>
+</head>
+<body class="bg-background-light dark:bg-background-dark font-display text-slate-900 dark:text-white min-h-screen flex flex-col overflow-x-hidden">
+<!-- Top Navigation -->
+<header class="flex items-center justify-between whitespace-nowrap border-b border-solid border-slate-200 dark:border-border-dark bg-surface-light dark:bg-surface-dark px-6 py-3 sticky top-0 z-50">
+<div class="flex items-center gap-4">
+<div class="size-8 text-primary flex items-center justify-center rounded-lg bg-primary/10">
+<span class="material-symbols-outlined text-2xl">graphic_eq</span>
+</div>
+<h2 class="text-lg font-bold leading-tight tracking-[-0.015em] text-slate-900 dark:text-white">TranscribeWeb</h2>
+</div>
+<div class="flex items-center gap-4">
+<button class="flex items-center justify-center rounded-lg size-10 text-slate-500 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-800 transition-colors">
+<span class="material-symbols-outlined">settings</span>
+</button>
+<button class="flex items-center justify-center rounded-lg size-10 text-slate-500 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-800 transition-colors relative">
+<span class="material-symbols-outlined">notifications</span>
+<span class="absolute top-2.5 right-2.5 size-2 bg-red-500 rounded-full border-2 border-surface-light dark:border-surface-dark"></span>
+</button>
+<div class="h-6 w-px bg-slate-200 dark:bg-slate-700 mx-1"></div>
+<div class="bg-center bg-no-repeat aspect-square bg-cover rounded-full size-10 cursor-pointer ring-2 ring-transparent hover:ring-primary/50 transition-all" data-alt="User profile avatar with abstract gradient background" style='background-image: url("https://lh3.googleusercontent.com/aida-public/AB6AXuAXQM-v_2CelqepI7x2vt7Y_ZxvUFWlPm-PykFQ5vwJABeNVn1qRdztwn-SZQHNWWcuxVL-XfYHH1G51w6SkgxEkWkDFGU2izgAaVmCWGv6BhewezCcPAJBMTPdlRfRpTbjv5QA3puH8RYI6bI8nSWZeub8xZqSAU2h1-nXYexDpninhLAtXn7tqodpPCfae7xfwBWZ_kN10pf0vy1JCQgSx9U7UWlHvMQ0lnAFcYkUoh1Okq9-C9Zw5FdB2AlCfL3tk4G2a1TC4Bk");'>
+</div>
+</div>
+</header>
+<!-- Main Layout -->
+<main class="flex-1 w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 flex flex-col gap-8">
+<!-- Page Heading & Actions -->
+<div class="flex flex-col sm:flex-row sm:items-end justify-between gap-4">
+<div class="flex flex-col gap-2">
+<h1 class="text-3xl sm:text-4xl font-black leading-tight tracking-[-0.033em] text-slate-900 dark:text-white">项目概览</h1>
+<p class="text-slate-500 dark:text-[#92a4c9] text-base font-normal">管理您的会议录音与转写记录</p>
+</div>
+<button class="flex items-center justify-center gap-2 rounded-lg h-12 sm:h-11 px-6 bg-primary hover:bg-blue-600 text-white text-sm font-bold shadow-lg shadow-primary/25 transition-all transform active:scale-95 w-full sm:w-auto">
+<span class="material-symbols-outlined text-xl">add</span>
+<span>新建项目</span>
+</button>
+</div>
+<!-- Filters & Search Toolbar -->
+<div class="flex flex-col lg:flex-row gap-4 items-start lg:items-center justify-between">
+<!-- Chips -->
+<div class="flex flex-wrap gap-2 overflow-x-auto pb-2 lg:pb-0 w-full lg:w-auto scrollbar-hide">
+<button class="flex h-9 items-center justify-center px-4 rounded-lg bg-primary text-white text-sm font-medium transition-colors">
+                    全部项目
+                </button>
+<button class="flex h-9 items-center justify-center px-4 rounded-lg bg-white dark:bg-border-dark text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700 border border-slate-200 dark:border-transparent text-sm font-medium transition-colors">
+                    已完成
+                </button>
+<button class="flex h-9 items-center justify-center px-4 rounded-lg bg-white dark:bg-border-dark text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700 border border-slate-200 dark:border-transparent text-sm font-medium transition-colors">
+                    转写中
+                </button>
+<button class="flex h-9 items-center justify-center px-4 rounded-lg bg-white dark:bg-border-dark text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700 border border-slate-200 dark:border-transparent text-sm font-medium transition-colors">
+                    草稿
+                </button>
+</div>
+<!-- Search -->
+<div class="w-full lg:max-w-sm">
+<div class="relative flex items-center w-full h-11 rounded-lg focus-within:ring-2 focus-within:ring-primary focus-within:ring-offset-2 dark:focus-within:ring-offset-background-dark">
+<div class="absolute left-3 text-slate-400 dark:text-[#92a4c9] flex items-center pointer-events-none">
+<span class="material-symbols-outlined">search</span>
+</div>
+<input class="w-full h-full rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-surface-dark pl-10 pr-4 text-sm text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-[#92a4c9] focus:outline-none focus:border-primary transition-colors shadow-sm" placeholder="搜索项目名称或日期..."/>
+</div>
+</div>
+</div>
+<!-- Data Table -->
+<div class="w-full bg-white dark:bg-surface-dark rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden flex flex-col">
+<div class="overflow-x-auto">
+<table class="w-full text-left border-collapse">
+<thead>
+<tr class="bg-slate-50 dark:bg-[#192233] border-b border-slate-200 dark:border-slate-800">
+<th class="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400 w-1/3">项目名称</th>
+<th class="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400 w-32">状态</th>
+<th class="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400 w-32">时长</th>
+<th class="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400 w-40">创建日期</th>
+<th class="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400 text-right w-24">操作</th>
+</tr>
+</thead>
+<tbody class="divide-y divide-slate-200 dark:divide-slate-800">
+<!-- Item 1: Completed -->
+<tr class="group hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors">
+<td class="px-6 py-4">
+<div class="flex items-center gap-3">
+<div class="flex-shrink-0 size-10 rounded bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center text-primary">
+<span class="material-symbols-outlined text-xl">description</span>
+</div>
+<div>
+<p class="font-bold text-slate-900 dark:text-white text-sm">产品周会 - Q4规划</p>
+<p class="text-xs text-slate-500 dark:text-slate-400 mt-0.5">MP3 • 45MB</p>
+</div>
+</div>
+</td>
+<td class="px-6 py-4">
+<span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-emerald-100 text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-500/20">
+<span class="size-1.5 rounded-full bg-emerald-500"></span>
+                                    已完成
+                                </span>
+</td>
+<td class="px-6 py-4 text-sm text-slate-600 dark:text-slate-300 font-medium font-mono">
+                                45:20
+                            </td>
+<td class="px-6 py-4 text-sm text-slate-500 dark:text-slate-400">
+                                2023-10-24
+                            </td>
+<td class="px-6 py-4 text-right">
+<div class="flex items-center justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+<button class="text-slate-400 hover:text-primary transition-colors p-1" title="下载">
+<span class="material-symbols-outlined text-[20px]">download</span>
+</button>
+<button class="text-slate-400 hover:text-red-500 transition-colors p-1" title="删除">
+<span class="material-symbols-outlined text-[20px]">delete</span>
+</button>
+<button class="text-slate-400 hover:text-slate-200 transition-colors p-1" title="更多">
+<span class="material-symbols-outlined text-[20px]">more_vert</span>
+</button>
+</div>
+</td>
+</tr>
+<!-- Item 2: Processing -->
+<tr class="group hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors bg-blue-50/50 dark:bg-blue-900/5">
+<td class="px-6 py-4">
+<div class="flex items-center gap-3">
+<div class="flex-shrink-0 size-10 rounded bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center text-primary relative">
+<span class="material-symbols-outlined text-xl animate-pulse">graphic_eq</span>
+</div>
+<div>
+<p class="font-bold text-slate-900 dark:text-white text-sm">营销策略讨论会</p>
+<p class="text-xs text-slate-500 dark:text-slate-400 mt-0.5">WAV • 120MB</p>
+</div>
+</div>
+</td>
+<td class="px-6 py-4">
+<span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-700 dark:bg-blue-500/10 dark:text-blue-400 border border-blue-200 dark:border-blue-500/20">
+<span class="material-symbols-outlined text-[14px] animate-spin">progress_activity</span>
+                                    转写中
+                                </span>
+</td>
+<td class="px-6 py-4 text-sm text-slate-400 dark:text-slate-500 font-medium font-mono">
+                                --:--
+                            </td>
+<td class="px-6 py-4 text-sm text-slate-500 dark:text-slate-400">
+                                2023-10-25
+                            </td>
+<td class="px-6 py-4 text-right">
+<div class="flex items-center justify-end gap-2 opacity-100 lg:opacity-0 lg:group-hover:opacity-100 transition-opacity">
+<button class="text-slate-400 hover:text-slate-200 transition-colors p-1" title="更多">
+<span class="material-symbols-outlined text-[20px]">more_vert</span>
+</button>
+</div>
+</td>
+</tr>
+<!-- Item 3: Completed -->
+<tr class="group hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors">
+<td class="px-6 py-4">
+<div class="flex items-center gap-3">
+<div class="flex-shrink-0 size-10 rounded bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center text-primary">
+<span class="material-symbols-outlined text-xl">description</span>
+</div>
+<div>
+<p class="font-bold text-slate-900 dark:text-white text-sm">用户访谈 - A组</p>
+<p class="text-xs text-slate-500 dark:text-slate-400 mt-0.5">MP4 • 210MB</p>
+</div>
+</div>
+</td>
+<td class="px-6 py-4">
+<span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-emerald-100 text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-500/20">
+<span class="size-1.5 rounded-full bg-emerald-500"></span>
+                                    已完成
+                                </span>
+</td>
+<td class="px-6 py-4 text-sm text-slate-600 dark:text-slate-300 font-medium font-mono">
+                                22:15
+                            </td>
+<td class="px-6 py-4 text-sm text-slate-500 dark:text-slate-400">
+                                2023-10-23
+                            </td>
+<td class="px-6 py-4 text-right">
+<div class="flex items-center justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+<button class="text-slate-400 hover:text-primary transition-colors p-1" title="下载">
+<span class="material-symbols-outlined text-[20px]">download</span>
+</button>
+<button class="text-slate-400 hover:text-red-500 transition-colors p-1" title="删除">
+<span class="material-symbols-outlined text-[20px]">delete</span>
+</button>
+<button class="text-slate-400 hover:text-slate-200 transition-colors p-1" title="更多">
+<span class="material-symbols-outlined text-[20px]">more_vert</span>
+</button>
+</div>
+</td>
+</tr>
+<!-- Item 4: Draft -->
+<tr class="group hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors">
+<td class="px-6 py-4">
+<div class="flex items-center gap-3">
+<div class="flex-shrink-0 size-10 rounded bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-slate-500">
+<span class="material-symbols-outlined text-xl">edit_note</span>
+</div>
+<div>
+<p class="font-bold text-slate-900 dark:text-white text-sm">技术架构评审</p>
+<p class="text-xs text-slate-500 dark:text-slate-400 mt-0.5">未上传文件</p>
+</div>
+</div>
+</td>
+<td class="px-6 py-4">
+<span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-slate-100 text-slate-600 dark:bg-slate-700/50 dark:text-slate-400 border border-slate-200 dark:border-slate-600">
+<span class="size-1.5 rounded-full bg-slate-400"></span>
+                                    草稿
+                                </span>
+</td>
+<td class="px-6 py-4 text-sm text-slate-400 dark:text-slate-500 font-medium font-mono">
+                                00:00
+                            </td>
+<td class="px-6 py-4 text-sm text-slate-500 dark:text-slate-400">
+                                2023-10-22
+                            </td>
+<td class="px-6 py-4 text-right">
+<div class="flex items-center justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+<button class="text-slate-400 hover:text-primary transition-colors p-1" title="编辑">
+<span class="material-symbols-outlined text-[20px]">edit</span>
+</button>
+<button class="text-slate-400 hover:text-red-500 transition-colors p-1" title="删除">
+<span class="material-symbols-outlined text-[20px]">delete</span>
+</button>
+</div>
+</td>
+</tr>
+<!-- Item 5: Completed -->
+<tr class="group hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors">
+<td class="px-6 py-4">
+<div class="flex items-center gap-3">
+<div class="flex-shrink-0 size-10 rounded bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center text-primary">
+<span class="material-symbols-outlined text-xl">description</span>
+</div>
+<div>
+<p class="font-bold text-slate-900 dark:text-white text-sm">全员大会</p>
+<p class="text-xs text-slate-500 dark:text-slate-400 mt-0.5">MP3 • 850MB</p>
+</div>
+</div>
+</td>
+<td class="px-6 py-4">
+<span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-emerald-100 text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-500/20">
+<span class="size-1.5 rounded-full bg-emerald-500"></span>
+                                    已完成
+                                </span>
+</td>
+<td class="px-6 py-4 text-sm text-slate-600 dark:text-slate-300 font-medium font-mono">
+                                90:00
+                            </td>
+<td class="px-6 py-4 text-sm text-slate-500 dark:text-slate-400">
+                                2023-10-20
+                            </td>
+<td class="px-6 py-4 text-right">
+<div class="flex items-center justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+<button class="text-slate-400 hover:text-primary transition-colors p-1" title="下载">
+<span class="material-symbols-outlined text-[20px]">download</span>
+</button>
+<button class="text-slate-400 hover:text-red-500 transition-colors p-1" title="删除">
+<span class="material-symbols-outlined text-[20px]">delete</span>
+</button>
+<button class="text-slate-400 hover:text-slate-200 transition-colors p-1" title="更多">
+<span class="material-symbols-outlined text-[20px]">more_vert</span>
+</button>
+</div>
+</td>
+</tr>
+</tbody>
+</table>
+</div>
+<!-- Pagination -->
+<div class="px-6 py-4 border-t border-slate-200 dark:border-slate-800 flex items-center justify-between">
+<p class="text-sm text-slate-500 dark:text-slate-400">显示 1 到 5 共 12 条记录</p>
+<div class="flex gap-2">
+<button class="px-3 py-1 rounded text-sm text-slate-500 disabled:opacity-50 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-800 transition-colors" disabled="">
+                        上一页
+                    </button>
+<button class="px-3 py-1 rounded text-sm text-primary font-medium hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors">
+                        下一页
+                    </button>
+</div>
+</div>
+</div>
+</main>
+</body></html>

@@ -1,0 +1,223 @@
+<!DOCTYPE html>
+<html lang="zh-CN"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>设置 - 会议转录</title>
+<link href="https://fonts.googleapis.com" rel="preconnect"/>
+<link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;700;900&amp;family=Manrope:wght@400;500;700;800&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "primary": "#2c3e50", // Dark slate, coordinating with warm background
+                        "primary-hover": "#1e293b",
+                        "background-light": "#f9f7f3", // WSJ/FT style warm paper tint
+                        "background-dark": "#101622",
+                        "surface-light": "#ffffff",
+                        "surface-dark": "#1a2230", 
+                        "border-light": "#e8e6e3", // Slightly warm border
+                        "border-dark": "#232f48",
+                    },
+                    fontFamily: {
+                        "sans": ['"Noto Sans SC"', "Manrope", "sans-serif"],
+                        "display": ['"Noto Sans SC"', "Manrope", "sans-serif"],
+                        "body": ['"Noto Sans SC"', "Manrope", "sans-serif"]
+                    },
+                    borderRadius: {"DEFAULT": "0.25rem", "lg": "0.5rem", "xl": "0.75rem", "full": "9999px"},
+                },
+            },
+        }
+    </script>
+</head>
+<body class="bg-background-light dark:bg-background-dark text-[#111418] dark:text-white font-sans overflow-hidden flex flex-col h-screen">
+<header class="flex items-center justify-between whitespace-nowrap border-b border-solid border-border-light dark:border-border-dark bg-surface-light dark:bg-background-dark px-6 py-3 shrink-0 z-20">
+<div class="flex items-center gap-4 text-[#111418] dark:text-white">
+<div class="size-8 flex items-center justify-center text-primary dark:text-white">
+<svg class="w-8 h-8" fill="currentColor" viewBox="0 0 48 48" xmlns="http://www.w3.org/2000/svg">
+<path clip-rule="evenodd" d="M12.0799 24L4 19.2479L9.95537 8.75216L18.04 13.4961L18.0446 4H29.9554L29.96 13.4961L38.0446 8.75216L44 19.2479L35.92 24L44 28.7521L38.0446 39.2479L29.96 34.5039L29.9554 44H18.0446L18.04 34.5039L9.95537 39.2479L4 28.7521L12.0799 24Z" fill="currentColor" fill-rule="evenodd"></path>
+</svg>
+</div>
+<h2 class="text-lg font-bold leading-tight tracking-[-0.015em]">会议速记</h2>
+</div>
+<div class="flex flex-1 justify-end gap-6 items-center">
+<button class="flex items-center justify-center rounded-lg h-10 w-10 hover:bg-black/5 dark:hover:bg-white/10 transition-colors text-[#111418] dark:text-white">
+<span class="material-symbols-outlined text-[24px]">notifications</span>
+</button>
+<div class="bg-center bg-no-repeat aspect-square bg-cover rounded-full size-10 border-2 border-transparent hover:border-primary cursor-pointer transition-all" data-alt="User profile avatar showing a smiling person" style='background-image: url("https://lh3.googleusercontent.com/aida-public/AB6AXuCfWwduhT76CmO8pogV5KvNrG-rS57wgbltpaVDp5222ERvhKeJlj7sdvy7tuJVNQ0sewJcL5exHnXokKCSWlOapgXPo77t004XKNtvkK2jKsSU6KIoRxq8Bmu1eOi16mlBsXQZk3DvTUwXzFtGXp3ycdA6Xzr28MaAZ3Bo3puomp4kIipISLUTyKE9PkGaZ5YsAyW4SiYrdFFLnSSMrKnd259F-BzwH8_81KMRoxMKLiCRRDVQwNQVvLCzeXKYEEVsM-e55EvSYz4");'></div>
+</div>
+</header>
+<div class="flex flex-1 overflow-hidden">
+<aside class="hidden md:flex flex-col w-72 border-r border-border-light dark:border-border-dark bg-surface-light dark:bg-background-dark p-4 shrink-0 overflow-y-auto">
+<div class="flex flex-col gap-6">
+<div class="flex gap-3 items-center p-2 rounded-xl bg-white dark:bg-surface-dark border border-border-light dark:border-border-dark shadow-sm">
+<div class="bg-center bg-no-repeat aspect-square bg-cover rounded-full size-12" data-alt="User profile avatar small" style='background-image: url("https://lh3.googleusercontent.com/aida-public/AB6AXuAq-gyN4YpjqRmzekqRLhgb9hdxWNOOYTNTSNKxhjvnQAyV2Z8pibz02wIrGr5wHpJv_8VlJap7lp9Ko7U3Nu1Xxt9ziqaeWE_yrRnfOI-EzVJlZFy9pbCngZvXzSea0eRLLipp5yKrl1CW9-prlmqmdn_pFoaQE4oednHWF7clhKgkt4UuCDr-Cv4KhL2CUCbuwKD6zPtMBmhrl97eMGgDISnsi0mRi_j15sPPN1nqFSbKydiTPbb_NEquKVXE97_lAUrDGrB144E");'></div>
+<div class="flex flex-col overflow-hidden">
+<h1 class="text-[#111418] dark:text-white text-sm font-bold truncate">张伟</h1>
+<p class="text-[#637588] dark:text-[#92a4c9] text-xs font-medium">专业版会员</p>
+</div>
+</div>
+<nav class="flex flex-col gap-1">
+<a class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-[#637588] dark:text-[#92a4c9] hover:bg-black/5 dark:hover:bg-white/5 transition-colors group" href="#">
+<span class="material-symbols-outlined text-[20px] group-hover:text-[#111418] dark:group-hover:text-white">person</span>
+<p class="text-sm font-medium leading-normal group-hover:text-[#111418] dark:group-hover:text-white">账户</p>
+</a>
+<a class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-[#637588] dark:text-[#92a4c9] hover:bg-black/5 dark:hover:bg-white/5 transition-colors group" href="#">
+<span class="material-symbols-outlined text-[20px] group-hover:text-[#111418] dark:group-hover:text-white">notifications</span>
+<p class="text-sm font-medium leading-normal group-hover:text-[#111418] dark:group-hover:text-white">通知</p>
+</a>
+<a class="flex items-center gap-3 px-3 py-2.5 rounded-lg bg-primary/10 dark:bg-[#232f48] text-primary dark:text-white transition-colors" href="#">
+<span class="material-symbols-outlined text-[20px] text-primary dark:text-white fill-1">palette</span>
+<p class="text-sm font-bold leading-normal">外观</p>
+</a>
+<a class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-[#637588] dark:text-[#92a4c9] hover:bg-black/5 dark:hover:bg-white/5 transition-colors group" href="#">
+<span class="material-symbols-outlined text-[20px] group-hover:text-[#111418] dark:group-hover:text-white">settings</span>
+<p class="text-sm font-medium leading-normal group-hover:text-[#111418] dark:group-hover:text-white">通用</p>
+</a>
+</nav>
+</div>
+<div class="mt-auto pt-6 border-t border-border-light dark:border-border-dark">
+<a class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-[#637588] dark:text-[#92a4c9] hover:bg-red-500/10 hover:text-red-500 transition-colors group" href="#">
+<span class="material-symbols-outlined text-[20px]">logout</span>
+<p class="text-sm font-medium leading-normal">退出登录</p>
+</a>
+</div>
+</aside>
+<main class="flex-1 overflow-y-auto bg-background-light dark:bg-background-dark p-4 md:p-10 flex justify-center">
+<div class="flex flex-col w-full max-w-[800px] gap-8 pb-10">
+<div class="flex flex-col gap-2">
+<h1 class="text-[#111418] dark:text-white text-3xl md:text-4xl font-black leading-tight tracking-[-0.033em]">设置</h1>
+<p class="text-[#637588] dark:text-[#92a4c9] text-base font-normal">管理您的账户详情和应用偏好。</p>
+</div>
+<section class="flex flex-col gap-4 rounded-xl border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark overflow-hidden shadow-sm">
+<div class="px-6 py-5 border-b border-border-light dark:border-border-dark">
+<h3 class="text-[#111418] dark:text-white text-lg font-bold leading-tight">外观</h3>
+<p class="text-[#637588] dark:text-[#92a4c9] text-sm mt-1">自定义界面体验</p>
+</div>
+<div class="p-6">
+<label class="block text-sm font-bold mb-4 text-[#111418] dark:text-white">主题偏好</label>
+<div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+<label class="group relative cursor-pointer">
+<input checked="" class="peer sr-only" name="theme" type="radio" value="light"/>
+<div class="flex flex-col items-center justify-center rounded-xl border-2 border-border-light dark:border-border-dark bg-background-light dark:bg-background-dark p-4 hover:border-primary/50 peer-checked:border-primary peer-checked:bg-primary/5 transition-all h-full">
+<div class="mb-3 p-3 rounded-full bg-white dark:bg-[#232f48] shadow-sm text-[#111418] dark:text-white">
+<span class="material-symbols-outlined">light_mode</span>
+</div>
+<span class="text-sm font-bold text-[#111418] dark:text-white">浅色模式</span>
+</div>
+<div class="absolute top-3 right-3 opacity-0 peer-checked:opacity-100 text-primary transition-opacity">
+<span class="material-symbols-outlined text-[20px] fill-1">check_circle</span>
+</div>
+</label>
+<label class="group relative cursor-pointer">
+<input class="peer sr-only" name="theme" type="radio" value="dark"/>
+<div class="flex flex-col items-center justify-center rounded-xl border-2 border-border-light dark:border-border-dark bg-background-light dark:bg-background-dark p-4 hover:border-primary/50 peer-checked:border-primary peer-checked:bg-primary/5 transition-all h-full">
+<div class="mb-3 p-3 rounded-full bg-white dark:bg-[#232f48] shadow-sm text-[#111418] dark:text-white">
+<span class="material-symbols-outlined">dark_mode</span>
+</div>
+<span class="text-sm font-bold text-[#111418] dark:text-white">深色模式</span>
+</div>
+<div class="absolute top-3 right-3 opacity-0 peer-checked:opacity-100 text-primary transition-opacity">
+<span class="material-symbols-outlined text-[20px] fill-1">check_circle</span>
+</div>
+</label>
+<label class="group relative cursor-pointer">
+<input class="peer sr-only" name="theme" type="radio" value="system"/>
+<div class="flex flex-col items-center justify-center rounded-xl border-2 border-border-light dark:border-border-dark bg-background-light dark:bg-background-dark p-4 hover:border-primary/50 peer-checked:border-primary peer-checked:bg-primary/5 transition-all h-full">
+<div class="mb-3 p-3 rounded-full bg-white dark:bg-[#232f48] shadow-sm text-[#111418] dark:text-white">
+<span class="material-symbols-outlined">settings_brightness</span>
+</div>
+<span class="text-sm font-bold text-[#111418] dark:text-white">跟随系统</span>
+</div>
+<div class="absolute top-3 right-3 opacity-0 peer-checked:opacity-100 text-primary transition-opacity">
+<span class="material-symbols-outlined text-[20px] fill-1">check_circle</span>
+</div>
+</label>
+</div>
+</div>
+</section>
+<section class="flex flex-col gap-4 rounded-xl border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark overflow-hidden shadow-sm">
+<div class="px-6 py-5 border-b border-border-light dark:border-border-dark">
+<h3 class="text-[#111418] dark:text-white text-lg font-bold leading-tight">账户信息</h3>
+</div>
+<div class="p-6 flex flex-col gap-6">
+<div class="flex items-center gap-4">
+<div class="bg-center bg-no-repeat aspect-square bg-cover rounded-full size-20" data-alt="User avatar for profile settings" style='background-image: url("https://lh3.googleusercontent.com/aida-public/AB6AXuCuTts4YnaGMVDCCdCTbjMIb30CiyorSxkZdyFHW4OTk0YuSy6--qeWxFayN3-bj7CaFFq66bgrnufGbBAcewyWDfp-qvswASvBIp_vMUOwbJrmj6h-VsqRlYXOIbTV2RxxEZAk7m-Xvd8Wgw9RhhpeXK1sEvy11Y8Z1_7TVSUInD38EIAgHnuK4ScCLPaFH4dxBwj1Q-OjsJlnYa_gzqt1ZtvXZS_5ufzNuX5b2Ie0YNO7ZH6XWTDh1WwqV99V7HiK7v9OwRvJepQ");'></div>
+<div class="flex flex-col gap-2">
+<div class="flex gap-2">
+<button class="bg-primary hover:bg-primary-hover text-white text-sm font-bold py-2 px-4 rounded-lg transition-colors">更换头像</button>
+<button class="bg-transparent border border-border-light dark:border-border-dark text-[#111418] dark:text-white hover:bg-black/5 dark:hover:bg-white/5 text-sm font-bold py-2 px-4 rounded-lg transition-colors">移除</button>
+</div>
+<p class="text-xs text-[#637588] dark:text-[#92a4c9]">JPG, GIF 或 PNG. 最大 1MB.</p>
+</div>
+</div>
+<div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+<div class="flex flex-col gap-2">
+<label class="text-sm font-medium text-[#111418] dark:text-white">全名</label>
+<div class="flex items-center px-4 h-12 rounded-lg border border-border-light dark:border-border-dark bg-white dark:bg-background-dark focus-within:border-primary focus-within:ring-1 focus-within:ring-primary transition-all">
+<span class="material-symbols-outlined text-[#92a4c9]">person</span>
+<input class="flex-1 bg-transparent border-none focus:ring-0 text-[#111418] dark:text-white placeholder-[#92a4c9] text-base ml-2 outline-none" type="text" value="张伟"/>
+</div>
+</div>
+<div class="flex flex-col gap-2">
+<label class="text-sm font-medium text-[#111418] dark:text-white">电子邮箱</label>
+<div class="flex items-center px-4 h-12 rounded-lg border border-border-light dark:border-border-dark bg-white dark:bg-background-dark focus-within:border-primary focus-within:ring-1 focus-within:ring-primary transition-all">
+<span class="material-symbols-outlined text-[#92a4c9]">mail</span>
+<input class="flex-1 bg-transparent border-none focus:ring-0 text-[#111418] dark:text-white placeholder-[#92a4c9] text-base ml-2 outline-none" type="email" value="zhang.wei@example.com"/>
+</div>
+</div>
+</div>
+</div>
+</section>
+<section class="flex flex-col gap-4 rounded-xl border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark overflow-hidden shadow-sm">
+<div class="px-6 py-5 border-b border-border-light dark:border-border-dark">
+<h3 class="text-[#111418] dark:text-white text-lg font-bold leading-tight">通知设置</h3>
+</div>
+<div class="flex flex-col">
+<div class="flex items-center justify-between p-6 border-b border-border-light dark:border-border-dark">
+<div class="flex flex-col gap-1">
+<p class="text-[#111418] dark:text-white font-medium">邮件通知</p>
+<p class="text-sm text-[#637588] dark:text-[#92a4c9]">接收关于账户活动的邮件。</p>
+</div>
+<label class="relative inline-flex items-center cursor-pointer">
+<input checked="" class="sr-only peer" type="checkbox" value=""/>
+<div class="w-11 h-6 bg-gray-200 peer-focus:outline-none rounded-full peer dark:bg-[#111722] peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-gray-600 peer-checked:bg-primary"></div>
+</label>
+</div>
+<div class="flex items-center justify-between p-6 border-b border-border-light dark:border-border-dark">
+<div class="flex flex-col gap-1">
+<p class="text-[#111418] dark:text-white font-medium">转录完成提醒</p>
+<p class="text-sm text-[#637588] dark:text-[#92a4c9]">当会议笔记处理完成时通知我。</p>
+</div>
+<label class="relative inline-flex items-center cursor-pointer">
+<input checked="" class="sr-only peer" type="checkbox" value=""/>
+<div class="w-11 h-6 bg-gray-200 peer-focus:outline-none rounded-full peer dark:bg-[#111722] peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-gray-600 peer-checked:bg-primary"></div>
+</label>
+</div>
+<div class="flex items-center justify-between p-6">
+<div class="flex flex-col gap-1">
+<p class="text-[#111418] dark:text-white font-medium">营销邮件</p>
+<p class="text-sm text-[#637588] dark:text-[#92a4c9]">接收关于新功能和更新的消息。</p>
+</div>
+<label class="relative inline-flex items-center cursor-pointer">
+<input class="sr-only peer" type="checkbox" value=""/>
+<div class="w-11 h-6 bg-gray-200 peer-focus:outline-none rounded-full peer dark:bg-[#111722] peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-gray-600 peer-checked:bg-primary"></div>
+</label>
+</div>
+</div>
+</section>
+<div class="flex justify-end pt-4">
+<button class="bg-primary hover:bg-primary-hover text-white font-bold py-3 px-8 rounded-lg shadow-lg shadow-primary/20 transition-all flex items-center gap-2">
+<span class="material-symbols-outlined text-[20px]">save</span>
+                        保存更改
+                    </button>
+</div>
+</div>
+</main>
+</div>
+
+</body></html>
