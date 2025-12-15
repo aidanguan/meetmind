@@ -398,6 +398,10 @@ const saveRecordingDate = async () => {
         ElMessage.error('Failed to update date');
     }
 };
+
+const handleExport = (format: string) => {
+    window.open(`/api/recordings/${recordingId}/transcript/export?format=${format}`, '_blank');
+};
 </script>
 
 <template>
@@ -468,9 +472,20 @@ const saveRecordingDate = async () => {
                         <span class="material-symbols-outlined text-[18px] text-white">auto_awesome</span>
                         生成纪要
                     </button>
-                    <button class="flex items-center justify-center w-9 h-9 bg-primary hover:bg-primary-hover text-white rounded-lg transition-all shadow-soft active:scale-[0.98]" title="导出结果">
-                        <span class="material-symbols-outlined text-[18px]">download</span>
-                    </button>
+                    
+                    <el-dropdown trigger="click" @command="handleExport">
+                        <span class="el-dropdown-link">
+                            <button class="flex items-center justify-center w-9 h-9 bg-primary hover:bg-primary-hover text-white rounded-lg transition-all shadow-soft active:scale-[0.98]" title="导出结果">
+                                <span class="material-symbols-outlined text-[18px]">download</span>
+                            </button>
+                        </span>
+                        <template #dropdown>
+                            <el-dropdown-menu>
+                                <el-dropdown-item command="docx">导出 Word (.docx)</el-dropdown-item>
+                                <el-dropdown-item command="pdf">导出 PDF (.pdf)</el-dropdown-item>
+                            </el-dropdown-menu>
+                        </template>
+                    </el-dropdown>
                 </div>
             </div>
             

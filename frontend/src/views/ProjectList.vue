@@ -42,7 +42,7 @@ onMounted(fetchProjects);
 </script>
 
 <template>
-  <div class="min-h-screen flex flex-col">
+  <div class="min-h-screen flex flex-col bg-background-light dark:bg-background-dark font-sans text-text-main dark:text-gray-100">
     <!-- Header -->
     <header class="flex items-center justify-between whitespace-nowrap border-b border-border-light dark:border-border-dark bg-background-light/80 dark:bg-surface-dark/90 backdrop-blur-md px-6 py-3 sticky top-0 z-50 transition-colors duration-300">
       <div class="flex items-center gap-3">

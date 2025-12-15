@@ -267,6 +267,10 @@ onMounted(async () => {
         startStreaming();
     }
 });
+
+const handleExport = (format: string) => {
+    window.open(`/api/recordings/${recordingId}/minutes/export?format=${format}`, '_blank');
+};
 </script>
 
 <template>
@@ -295,209 +299,199 @@ onMounted(async () => {
       </div>
     </header>
 
-    <div class="flex-1 flex overflow-hidden max-w-7xl mx-auto w-full p-4 sm:p-6 lg:p-8 gap-6">
+    <div class="flex-1 flex flex-col overflow-hidden max-w-7xl mx-auto w-full p-4 sm:p-6 lg:p-8">
       
-      <!-- Left Column: Minutes -->
-      <div class="flex-1 flex flex-col bg-transparent overflow-hidden">
-        
-        <!-- Header Section (Breadcrumb + Title) -->
-        <div class="mb-6">
-            <!-- Breadcrumb -->
-            <div class="flex items-center gap-2 text-sm text-text-muted dark:text-gray-500 mb-4">
-                <span class="hover:text-primary cursor-pointer transition-colors" @click="router.push('/')">首页</span>
-                <span class="material-symbols-outlined text-[14px]">chevron_right</span>
-                <span class="hover:text-primary cursor-pointer transition-colors" @click="router.push(`/project/${recording?.project_id}`)">项目详情</span>
-                <span class="material-symbols-outlined text-[14px]">chevron_right</span>
-                <span class="text-text-main dark:text-gray-300 font-medium truncate max-w-[200px]">会议纪要</span>
-            </div>
+      <!-- Header Section (Breadcrumb + Title) -->
+      <div class="mb-6">
+          <!-- Breadcrumb -->
+          <div class="flex items-center gap-2 text-sm text-text-muted dark:text-gray-500 mb-4">
+              <span class="hover:text-primary cursor-pointer transition-colors" @click="router.push('/')">首页</span>
+              <span class="material-symbols-outlined text-[14px]">chevron_right</span>
+              <span class="hover:text-primary cursor-pointer transition-colors" @click="router.push(`/project/${recording?.project_id}`)">项目详情</span>
+              <span class="material-symbols-outlined text-[14px]">chevron_right</span>
+              <span class="text-text-main dark:text-gray-300 font-medium truncate max-w-[200px]">会议纪要</span>
+          </div>
 
-            <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                <div class="flex items-center gap-3 group">
-                    <template v-if="!isEditingName">
-                        <h1 class="text-2xl sm:text-3xl font-bold text-text-main dark:text-white tracking-tight truncate max-w-md">{{ recording?.filename || 'Untitled Recording' }}</h1>
-                        <button class="text-text-muted hover:text-primary transition-colors" @click="startEditingName">
-                            <span class="material-symbols-outlined text-[20px]">edit</span>
-                        </button>
-                    </template>
-                    <template v-else>
-                        <input 
-                            id="recording-name-input"
-                            v-model="editedName"
-                            @keyup.enter="saveRecordingName"
-                            @blur="saveRecordingName"
-                            class="text-2xl sm:text-3xl font-bold text-text-main dark:text-white bg-transparent border-b border-primary focus:outline-none w-full max-w-md"
-                        />
-                    </template>
-                     <span class="px-2 py-0.5 rounded-full bg-green-100 text-green-700 text-xs font-medium border border-green-200" v-if="minutes">Saved</span>
-                </div>
-                
-                <div class="flex items-center gap-3">
-                     <button class="flex items-center gap-2 px-3 py-1.5 bg-white dark:bg-surface-dark border border-border-light dark:border-border-dark rounded-lg text-sm font-medium hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors shadow-sm" @click="fetchMinutes">
-                        <span class="material-symbols-outlined text-[18px]">save</span>
-                        Save Draft
-                    </button>
-                    <button class="flex items-center gap-2 px-3 py-1.5 bg-primary hover:bg-primary-hover text-white rounded-lg text-sm font-medium transition-colors shadow-sm">
-                        <span class="material-symbols-outlined text-[18px]">ios_share</span>
-                        Export
-                    </button>
-                </div>
-            </div>
-            
-            <div class="flex items-center gap-6 text-sm font-medium text-text-muted dark:text-gray-500 mt-3">
-                <span class="flex items-center gap-1.5 group cursor-pointer" @click="startEditingDate">
-                    <span class="material-symbols-outlined text-[16px]">calendar_today</span>
-                    <template v-if="!isEditingDate">
-                         {{ recording?.created_at ? new Date(recording.created_at).toLocaleDateString() : 'N/A' }} 
-                         {{ recording?.created_at ? new Date(recording.created_at).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) : '' }}
-                         <span class="material-symbols-outlined text-[14px] opacity-0 group-hover:opacity-100 transition-opacity">edit</span>
-                    </template>
-                    <el-date-picker
-                        v-else
-                        v-model="editedDate"
-                        type="datetime"
-                        format="YYYY/MM/DD HH:mm"
-                        size="small"
-                        :teleported="false"
-                        @change="saveRecordingDate"
-                        @blur="isEditingDate = false"
-                        style="width: 180px"
-                        ref="datePickerRef"
-                    />
-                </span>
-                <span class="flex items-center gap-1.5"><span class="material-symbols-outlined text-[16px]">schedule</span> {{ formatTime(duration) }}</span>
-            </div>
-        </div>
-
-        <!-- Minutes Content Area -->
-        <div class="flex-1 bg-surface-light dark:bg-surface-dark rounded-xl shadow-card border border-border-light dark:border-border-dark overflow-hidden flex flex-col">
-            
-            <!-- Toolbar -->
-            <div class="px-6 py-4 border-b border-border-light dark:border-border-dark flex items-center justify-between bg-gray-50/50 dark:bg-surface-dark/50">
-                <h3 class="text-xs font-bold text-text-muted uppercase tracking-wider">Meeting Minutes</h3>
-                
-                <div class="flex items-center gap-2">
-                    <template v-if="isEditingMinutes">
-                         <button @click="cancelEditMinutes" class="text-text-muted hover:text-text-main text-sm font-medium px-3 py-1 rounded transition-colors">
-                            Cancel
-                        </button>
-                         <button @click="saveMinutes" class="text-white bg-primary hover:bg-primary-hover text-sm font-bold px-3 py-1 rounded transition-colors shadow-sm">
-                            Save
-                        </button>
-                    </template>
-                    <template v-else>
-                        <button @click="startEditingMinutes" class="text-text-muted hover:text-primary text-sm font-medium flex items-center gap-1 px-3 py-1 rounded transition-colors hover:bg-gray-100 dark:hover:bg-gray-800" :disabled="isGenerating">
-                            <span class="material-symbols-outlined text-[16px]">edit</span>
-                            Edit
-                        </button>
-                        <div class="h-4 w-px bg-border-light dark:bg-border-dark mx-1"></div>
-                        <button v-if="!isGenerating" @click="startStreaming" class="text-primary hover:text-primary-hover text-sm font-bold flex items-center gap-1 bg-primary/5 px-3 py-1 rounded-full transition-colors">
-                            <span class="material-symbols-outlined text-[16px]">auto_awesome</span>
-                            AI Regenerate
-                        </button>
-                        <div v-else class="text-primary text-sm font-bold flex items-center gap-2 animate-pulse px-3 py-1">
-                                <span class="w-2 h-2 rounded-full bg-primary"></span> Generating...
-                        </div>
-                    </template>
-                </div>
-            </div>
-
-            <!-- Content Body -->
-            <div class="flex-1 overflow-y-auto p-6 lg:p-8 relative">
-                
-                <textarea 
-                    v-if="isEditingMinutes"
-                    v-model="editedMinutesContent"
-                    class="w-full h-full bg-transparent border-none resize-none focus:ring-0 text-text-main dark:text-gray-300 font-mono text-sm leading-relaxed"
-                    placeholder="Enter meeting minutes..."
-                ></textarea>
-
-                <div v-else class="prose dark:prose-invert max-w-none prose-headings:font-bold prose-h1:text-2xl prose-h2:text-xl prose-p:text-text-main dark:prose-p:text-gray-300 prose-li:text-text-main dark:prose-li:text-gray-300 prose-blockquote:border-l-4 prose-blockquote:border-primary prose-blockquote:bg-gray-50 dark:prose-blockquote:bg-gray-800/50 prose-blockquote:py-1 prose-blockquote:px-4 prose-blockquote:rounded-r" 
-                     v-html="renderedContent">
-                </div>
-                
-                 <div v-if="!streamContent && loading && !isEditingMinutes" class="absolute inset-0 flex flex-col items-center justify-center bg-white/80 dark:bg-surface-dark/80 backdrop-blur-sm z-10">
-                    <span class="material-symbols-outlined text-4xl animate-spin mb-2 text-primary">progress_activity</span>
-                    <span class="text-sm font-medium">AI is writing...</span>
-                </div>
-                
-                <div v-if="!streamContent && !loading && !minutes && !isEditingMinutes" class="flex flex-col items-center justify-center h-full opacity-50">
-                     <span class="material-symbols-outlined text-4xl mb-2">description</span>
-                     <span class="text-sm font-medium">No minutes yet. Click 'AI Regenerate' to start.</span>
-                </div>
-            </div>
-        </div>
-
+          <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+              <div class="flex items-center gap-3 group">
+                  <template v-if="!isEditingName">
+                      <h1 class="text-2xl sm:text-3xl font-bold text-text-main dark:text-white tracking-tight truncate max-w-md">{{ recording?.filename || 'Untitled Recording' }}</h1>
+                      <button class="text-text-muted hover:text-primary transition-colors" @click="startEditingName">
+                          <span class="material-symbols-outlined text-[20px]">edit</span>
+                      </button>
+                  </template>
+                  <template v-else>
+                      <input 
+                          id="recording-name-input"
+                          v-model="editedName"
+                          @keyup.enter="saveRecordingName"
+                          @blur="saveRecordingName"
+                          class="text-2xl sm:text-3xl font-bold text-text-main dark:text-white bg-transparent border-b border-primary focus:outline-none w-full max-w-md"
+                      />
+                  </template>
+                   <span class="px-2 py-0.5 rounded-full bg-green-100 text-green-700 text-xs font-medium border border-green-200" v-if="minutes">Saved</span>
+              </div>
+              
+              <div class="flex items-center gap-3">
+                  <el-dropdown trigger="click" @command="handleExport">
+                      <span class="el-dropdown-link">
+                          <button class="flex items-center justify-center w-9 h-9 bg-primary hover:bg-primary-hover text-white rounded-lg transition-all shadow-soft active:scale-[0.98]" title="导出结果">
+                              <span class="material-symbols-outlined text-[18px]">download</span>
+                          </button>
+                      </span>
+                      <template #dropdown>
+                          <el-dropdown-menu>
+                              <el-dropdown-item command="docx">导出 Word (.docx)</el-dropdown-item>
+                              <el-dropdown-item command="pdf">导出 PDF (.pdf)</el-dropdown-item>
+                          </el-dropdown-menu>
+                      </template>
+                  </el-dropdown>
+              </div>
+          </div>
+          
+          <div class="flex items-center gap-6 text-sm font-medium text-text-muted dark:text-gray-500 mt-3">
+              <span class="flex items-center gap-1.5 group cursor-pointer" @click="startEditingDate">
+                  <span class="material-symbols-outlined text-[16px]">calendar_today</span>
+                  <template v-if="!isEditingDate">
+                       {{ recording?.created_at ? new Date(recording.created_at).toLocaleDateString() : 'N/A' }} 
+                       {{ recording?.created_at ? new Date(recording.created_at).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) : '' }}
+                       <span class="material-symbols-outlined text-[14px] opacity-0 group-hover:opacity-100 transition-opacity">edit</span>
+                  </template>
+                  <el-date-picker
+                      v-else
+                      v-model="editedDate"
+                      type="datetime"
+                      format="YYYY/MM/DD HH:mm"
+                      size="small"
+                      :teleported="false"
+                      @change="saveRecordingDate"
+                      @blur="isEditingDate = false"
+                      style="width: 180px"
+                      ref="datePickerRef"
+                  />
+              </span>
+              <span class="flex items-center gap-1.5"><span class="material-symbols-outlined text-[16px]">schedule</span> {{ formatTime(duration) }}</span>
+          </div>
       </div>
 
-      <!-- Right Column: Sidebar -->
-      <div class="w-[340px] flex flex-col gap-6 pt-0 shrink-0">
-        
-        <!-- Audio Player Card -->
-        <div class="bg-surface-light dark:bg-surface-dark rounded-xl shadow-card border border-border-light dark:border-border-dark p-6">
-            <div class="flex justify-between items-center mb-6">
-                <span class="text-xs font-bold text-text-muted dark:text-gray-500 uppercase tracking-wider">录音回放</span>
-                <div class="flex items-center gap-1.5 text-xs text-red-600 font-medium bg-red-50 dark:bg-red-900/20 px-2 py-1 rounded-full border border-red-100 dark:border-red-900/30">
-                    <span class="w-1.5 h-1.5 rounded-full bg-red-600 animate-pulse"></span>
-                    实时同步
-                </div>
-            </div>
+      <!-- Audio Player (New Horizontal Design) -->
+      <div class="bg-surface-light dark:bg-surface-dark rounded-xl shadow-card border border-border-light dark:border-border-dark p-4 mb-6 flex flex-col md:flex-row items-center gap-4 md:gap-6">
+          
+          <!-- Controls -->
+          <div class="flex items-center gap-3 shrink-0">
+             <button @click="togglePlay" class="size-10 rounded-full bg-primary hover:bg-primary-hover flex items-center justify-center text-white shadow-soft transition-transform hover:scale-105 active:scale-95">
+                  <span class="material-symbols-outlined text-[24px] ml-0.5" v-if="!isPlaying">play_arrow</span>
+                  <span class="material-symbols-outlined text-[24px]" v-else>pause</span>
+              </button>
+              
+              <div class="flex items-center gap-1">
+                  <button @click="seek(-10)" class="text-text-muted hover:text-primary transition-colors p-1.5 rounded-full hover:bg-gray-100 dark:hover:bg-gray-800">
+                      <span class="material-symbols-outlined text-[20px]">replay_10</span>
+                  </button>
+                  <button @click="seek(10)" class="text-text-muted hover:text-primary transition-colors p-1.5 rounded-full hover:bg-gray-100 dark:hover:bg-gray-800">
+                      <span class="material-symbols-outlined text-[20px]">forward_10</span>
+                  </button>
+              </div>
+          </div>
 
-            <!-- Waveform Visualization -->
-            <div class="h-12 flex items-center justify-center gap-1 mb-6 px-2">
-                 <div v-for="i in 30" :key="i" 
-                    class="w-1.5 bg-primary rounded-full transition-all duration-300 ease-in-out"
-                    :class="{'opacity-20': !isPlaying}"
-                    :style="{ 
-                        height: isPlaying ? `${30 + Math.random() * 70}%` : '30%',
-                        opacity: isPlaying ? (Math.random() > 0.5 ? 1 : 0.6) : 0.2
-                    }"></div>
-            </div>
+          <!-- Progress & Waveform -->
+          <div class="flex-1 w-full flex flex-col gap-1.5">
+              <div class="flex justify-between text-[11px] text-text-muted dark:text-gray-500 font-bold font-mono tracking-wide">
+                  <span>{{ formatTime(currentTime) }}</span>
+                  <div class="flex items-center gap-2">
+                      <span v-if="isPlaying" class="flex items-center gap-1 text-[10px] text-primary bg-primary/5 px-1.5 py-0.5 rounded-full">
+                          <span class="w-1.5 h-1.5 rounded-full bg-primary animate-pulse"></span>
+                          Playing
+                      </span>
+                      <span>{{ formatTime(duration) }}</span>
+                  </div>
+              </div>
+              
+              <!-- Progress Bar -->
+              <div class="relative w-full h-2 bg-gray-100 dark:bg-gray-700 rounded-full cursor-pointer group overflow-hidden" @click="(e) => {
+                      const rect = (e.target as HTMLElement).getBoundingClientRect();
+                      const percent = (e.clientX - rect.left) / rect.width;
+                      stopAt = null;
+                      if(audioRef) audioRef.currentTime = percent * audioRef.duration;
+                  }">
+                  <div class="absolute top-0 left-0 h-full bg-primary rounded-full transition-all duration-100" 
+                      :style="{ width: `${(currentTime / duration) * 100}%` }"></div>
+                  
+                  <!-- Simple Waveform overlay (optional visual effect) -->
+                   <div class="absolute inset-0 flex items-center justify-between opacity-10 pointer-events-none">
+                       <div v-for="i in 50" :key="i" class="w-0.5 bg-black h-full"></div>
+                   </div>
+              </div>
+          </div>
 
-            <!-- Progress Bar -->
-            <div class="relative w-full h-1.5 bg-gray-100 dark:bg-gray-700 rounded-full mb-2 cursor-pointer group overflow-hidden" @click="(e) => {
-                    const rect = (e.target as HTMLElement).getBoundingClientRect();
-                    const percent = (e.clientX - rect.left) / rect.width;
-                    stopAt = null;
-                    if(audioRef) audioRef.currentTime = percent * audioRef.duration;
-                }">
-                <div class="absolute top-0 left-0 h-full bg-primary rounded-full transition-all duration-100" 
-                    :style="{ width: `${(currentTime / duration) * 100}%` }"></div>
-            </div>
-            <div class="flex justify-between text-[11px] text-text-muted dark:text-gray-500 font-bold mb-6 font-mono tracking-wide">
-                <span>{{ formatTime(currentTime) }}</span>
-                <span>{{ formatTime(duration) }}</span>
-            </div>
+          <!-- Speed Control -->
+          <button @click="changeSpeed" class="shrink-0 text-xs font-bold text-text-muted hover:text-primary h-8 px-2 rounded border border-border-light dark:border-border-dark hover:border-primary flex items-center justify-center transition-all bg-white dark:bg-surface-dark">
+              {{ playbackRate }}x
+          </button>
 
-            <!-- Controls -->
-            <div class="flex items-center justify-between px-2">
-                <button @click="changeSpeed" class="text-xs font-bold text-text-muted hover:text-primary w-9 h-9 rounded-lg border border-border-light dark:border-border-dark hover:border-primary flex items-center justify-center transition-all bg-white dark:bg-surface-dark">
-                    {{ playbackRate }}x
-                </button>
-                
-                <div class="flex items-center gap-4">
-                    <button @click="seek(-10)" class="text-text-muted hover:text-primary transition-colors p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-800">
-                        <span class="material-symbols-outlined text-[24px]">replay_10</span>
-                    </button>
-                    
-                    <button @click="togglePlay" class="size-14 rounded-full bg-primary hover:bg-primary-hover flex items-center justify-center text-white shadow-soft transition-transform hover:scale-105 active:scale-95">
-                        <span class="material-symbols-outlined text-[32px] ml-1" v-if="!isPlaying">play_arrow</span>
-                        <span class="material-symbols-outlined text-[32px]" v-else>pause</span>
-                    </button>
-                    
-                    <button @click="seek(10)" class="text-text-muted hover:text-primary transition-colors p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-800">
-                        <span class="material-symbols-outlined text-[24px]">forward_10</span>
-                    </button>
-                </div>
+          <!-- Hidden Audio Element -->
+          <audio ref="audioRef" class="hidden" @timeupdate="onTimeUpdate" @loadedmetadata="onLoadedMetadata" @ended="onEnded" v-if="recording && recording.media_url">
+              <source :src="mediaSrc" :type="mediaType">
+          </audio>
+      </div>
 
-                <div class="w-9"></div> <!-- Spacer -->
-            </div>
+      <!-- Minutes Content Area (Full Width) -->
+      <div class="flex-1 bg-surface-light dark:bg-surface-dark rounded-xl shadow-card border border-border-light dark:border-border-dark overflow-hidden flex flex-col min-h-0">
+          
+          <!-- Toolbar -->
+          <div class="px-6 py-4 border-b border-border-light dark:border-border-dark flex items-center justify-between bg-gray-50/50 dark:bg-surface-dark/50">
+              <h3 class="text-xs font-bold text-text-muted uppercase tracking-wider">Meeting Minutes</h3>
+              
+              <div class="flex items-center gap-2">
+                  <template v-if="isEditingMinutes">
+                       <button @click="cancelEditMinutes" class="text-text-muted hover:text-text-main text-sm font-medium px-3 py-1 rounded transition-colors">
+                          Cancel
+                      </button>
+                       <button @click="saveMinutes" class="text-white bg-primary hover:bg-primary-hover text-sm font-bold px-3 py-1 rounded transition-colors shadow-sm">
+                          Save
+                      </button>
+                  </template>
+                  <template v-else>
+                      <button @click="startEditingMinutes" class="text-text-muted hover:text-primary text-sm font-medium flex items-center gap-1 px-3 py-1 rounded transition-colors hover:bg-gray-100 dark:hover:bg-gray-800" :disabled="isGenerating">
+                          <span class="material-symbols-outlined text-[16px]">edit</span>
+                          Edit
+                      </button>
+                      <div class="h-4 w-px bg-border-light dark:bg-border-dark mx-1"></div>
+                      <button v-if="!isGenerating" @click="startStreaming" class="text-primary hover:text-primary-hover text-sm font-bold flex items-center gap-1 bg-primary/5 px-3 py-1 rounded-full transition-colors">
+                          <span class="material-symbols-outlined text-[16px]">auto_awesome</span>
+                          AI Regenerate
+                      </button>
+                      <div v-else class="text-primary text-sm font-bold flex items-center gap-2 animate-pulse px-3 py-1">
+                              <span class="w-2 h-2 rounded-full bg-primary"></span> Generating...
+                      </div>
+                  </template>
+              </div>
+          </div>
 
-            <!-- Hidden Audio Element -->
-            <audio ref="audioRef" class="hidden" @timeupdate="onTimeUpdate" @loadedmetadata="onLoadedMetadata" @ended="onEnded" v-if="recording && recording.media_url">
-                <source :src="mediaSrc" :type="mediaType">
-            </audio>
-        </div>
+          <!-- Content Body -->
+          <div class="flex-1 overflow-y-auto p-6 lg:p-8 relative">
+              
+              <textarea 
+                  v-if="isEditingMinutes"
+                  v-model="editedMinutesContent"
+                  class="w-full h-full bg-transparent border-none resize-none focus:ring-0 text-text-main dark:text-gray-300 font-mono text-sm leading-relaxed"
+                  placeholder="Enter meeting minutes..."
+              ></textarea>
 
+              <div v-else class="prose dark:prose-invert max-w-none prose-headings:font-bold prose-h1:text-2xl prose-h2:text-xl prose-p:text-text-main dark:prose-p:text-gray-300 prose-li:text-text-main dark:prose-li:text-gray-300 prose-blockquote:border-l-4 prose-blockquote:border-primary prose-blockquote:bg-gray-50 dark:prose-blockquote:bg-gray-800/50 prose-blockquote:py-1 prose-blockquote:px-4 prose-blockquote:rounded-r" 
+                   v-html="renderedContent">
+              </div>
+              
+               <div v-if="!streamContent && loading && !isEditingMinutes" class="absolute inset-0 flex flex-col items-center justify-center bg-white/80 dark:bg-surface-dark/80 backdrop-blur-sm z-10">
+                  <span class="material-symbols-outlined text-4xl animate-spin mb-2 text-primary">progress_activity</span>
+                  <span class="text-sm font-medium">AI is writing...</span>
+              </div>
+              
+              <div v-if="!streamContent && !loading && !minutes && !isEditingMinutes" class="flex flex-col items-center justify-center h-full opacity-50">
+                   <span class="material-symbols-outlined text-4xl mb-2">description</span>
+                   <span class="text-sm font-medium">No minutes yet. Click 'AI Regenerate' to start.</span>
+              </div>
+          </div>
       </div>
 
     </div>
@@ -506,20 +500,89 @@ onMounted(async () => {
 
 <style>
 /* Markdown Styles override */
+.prose {
+    font-size: 14px;
+    line-height: 1.6;
+}
+
 .prose ul {
     list-style-type: disc;
     padding-left: 1.5em;
+    margin-bottom: 1em;
 }
 .prose ol {
     list-style-type: decimal;
     padding-left: 1.5em;
+    margin-bottom: 1em;
 }
-.prose h1, .prose h2, .prose h3 {
+.prose h1 {
+    font-size: 1.75em;
+    font-weight: 700;
     margin-top: 1.5em;
-    margin-bottom: 0.5em;
+    margin-bottom: 0.8em;
+    line-height: 1.2;
+}
+.prose h2 {
+    font-size: 1.4em;
+    font-weight: 600;
+    margin-top: 1.5em;
+    margin-bottom: 0.8em;
+    line-height: 1.3;
+}
+.prose h3 {
+    font-size: 1.2em;
+    font-weight: 600;
+    margin-top: 1.5em;
+    margin-bottom: 0.8em;
+    line-height: 1.3;
 }
 .prose p {
     margin-bottom: 1em;
-    line-height: 1.6;
+}
+
+/* Table Styles */
+.prose table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-bottom: 1.5em;
+    font-size: 0.95em;
+}
+
+.prose th,
+.prose td {
+    border: 1px solid #e2e8f0;
+    padding: 0.75rem;
+    text-align: left;
+}
+
+.dark .prose th,
+.dark .prose td {
+    border-color: #404040;
+}
+
+.prose th {
+    background-color: #f8fafc;
+    font-weight: 600;
+}
+
+.dark .prose th {
+    background-color: #262626;
+}
+
+.prose tr:nth-child(even) {
+    background-color: #fcfcfc;
+}
+
+.dark .prose tr:nth-child(even) {
+    background-color: rgba(255, 255, 255, 0.02);
+}
+
+.prose strong {
+    font-weight: 600;
+}
+
+.prose blockquote {
+    font-style: italic;
+    color: var(--color-text-muted);
 }
 </style>

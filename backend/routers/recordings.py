@@ -1,8 +1,9 @@
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form, BackgroundTasks
 from fastapi.responses import StreamingResponse
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 from database import get_db, SessionLocal
-from models import Project, Recording, RecordingStatus, Transcript, MeetingMinutes
+from models import Project, Recording, RecordingStatus, Transcript, MeetingMinutes, User
+from auth import get_current_user
 from pydantic import BaseModel
 from typing import List, Optional
 import shutil
@@ -12,6 +13,12 @@ import datetime
 from tasks import transcribe_audio, generate_minutes
 import redis
 from services.llm import LLMService
+from services.export import (
+    export_transcript_docx,
+    export_transcript_pdf,
+    export_minutes_docx,
+    export_minutes_pdf
+)
 
 router = APIRouter(prefix="/recordings", tags=["recordings"])
 
@@ -33,6 +40,7 @@ class RecordingOut(BaseModel):
     status: RecordingStatus
     duration: Optional[int]
     created_at: Optional[object] # datetime
+    minutes_id: Optional[int] = None
 
     class Config:
         orm_mode = True
@@ -69,7 +77,7 @@ class RecordingDetailOut(BaseModel):
 import subprocess
 
 @router.post("/upload/{project_id}", response_model=RecordingOut)
-def upload_recording(project_id: int, file: UploadFile = File(...), db: Session = Depends(get_db)):
+def upload_recording(project_id: int, file: UploadFile = File(...), db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     project = db.query(Project).filter(Project.id == project_id).first()
     if not project:
         raise HTTPException(status_code=404, detail="Project not found")
@@ -110,11 +118,11 @@ def upload_recording(project_id: int, file: UploadFile = File(...), db: Session 
     return db_recording
 
 @router.get("/project/{project_id}", response_model=List[RecordingOut])
-def list_recordings(project_id: int, db: Session = Depends(get_db)):
-    return db.query(Recording).filter(Recording.project_id == project_id).order_by(Recording.created_at.desc()).all()
+def list_recordings(project_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    return db.query(Recording).options(joinedload(Recording.minutes)).filter(Recording.project_id == project_id).order_by(Recording.created_at.desc()).all()
 
 @router.get("/{recording_id}", response_model=RecordingDetailOut)
-def get_recording(recording_id: int, db: Session = Depends(get_db)):
+def get_recording(recording_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     recording = db.query(Recording).filter(Recording.id == recording_id).first()
     if not recording:
         raise HTTPException(status_code=404, detail="Recording not found")
@@ -143,7 +151,7 @@ def get_recording(recording_id: int, db: Session = Depends(get_db)):
     }
 
 @router.post("/{recording_id}/transcribe")
-def start_transcription(recording_id: int, db: Session = Depends(get_db)):
+def start_transcription(recording_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     recording = db.query(Recording).filter(Recording.id == recording_id).first()
     if not recording:
         raise HTTPException(status_code=404, detail="Recording not found")
@@ -152,7 +160,7 @@ def start_transcription(recording_id: int, db: Session = Depends(get_db)):
     return {"message": "Transcription started"}
 
 @router.get("/{recording_id}/transcript", response_model=TranscriptOut)
-def get_transcript(recording_id: int, db: Session = Depends(get_db)):
+def get_transcript(recording_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     recording = db.query(Recording).filter(Recording.id == recording_id).first()
     if not recording:
         raise HTTPException(status_code=404, detail="Recording not found")
@@ -180,7 +188,7 @@ class MinutesRequest(BaseModel):
     context: str = ""
 
 @router.get("/{recording_id}/minutes/stream")
-def stream_minutes(recording_id: int, context: str = "", db: Session = Depends(get_db)):
+def stream_minutes(recording_id: int, context: str = "", db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     recording = db.query(Recording).filter(Recording.id == recording_id).first()
     if not recording:
         raise HTTPException(status_code=404, detail="Recording not found")
@@ -223,7 +231,7 @@ def stream_minutes(recording_id: int, context: str = "", db: Session = Depends(g
     return StreamingResponse(generate_and_save(), media_type="text/plain")
 
 @router.post("/{recording_id}/minutes")
-def create_minutes(recording_id: int, request: MinutesRequest, db: Session = Depends(get_db)):
+def create_minutes(recording_id: int, request: MinutesRequest, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     recording = db.query(Recording).filter(Recording.id == recording_id).first()
     if not recording:
         raise HTTPException(status_code=404, detail="Recording not found")
@@ -232,7 +240,7 @@ def create_minutes(recording_id: int, request: MinutesRequest, db: Session = Dep
     return {"message": "Minutes generation started"}
 
 @router.get("/{recording_id}/minutes", response_model=MinutesOut)
-def get_minutes(recording_id: int, db: Session = Depends(get_db)):
+def get_minutes(recording_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     minutes = db.query(MeetingMinutes).filter(MeetingMinutes.recording_id == recording_id).first()
     if not minutes:
         raise HTTPException(status_code=404, detail="Minutes not found")
@@ -242,7 +250,7 @@ class UpdateMinutesRequest(BaseModel):
     content: str
 
 @router.put("/{recording_id}/minutes", response_model=MinutesOut)
-def update_minutes(recording_id: int, request: UpdateMinutesRequest, db: Session = Depends(get_db)):
+def update_minutes(recording_id: int, request: UpdateMinutesRequest, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     minutes = db.query(MeetingMinutes).filter(MeetingMinutes.recording_id == recording_id).first()
     if not minutes:
          # Optionally create if not exists, but for now strict update
@@ -262,7 +270,7 @@ class UpdateRecordingRequest(BaseModel):
     created_at: Optional[datetime.datetime] = None
 
 @router.put("/{recording_id}", response_model=RecordingOut)
-def update_recording(recording_id: int, request: UpdateRecordingRequest, db: Session = Depends(get_db)):
+def update_recording(recording_id: int, request: UpdateRecordingRequest, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     recording = db.query(Recording).filter(Recording.id == recording_id).first()
     if not recording:
         raise HTTPException(status_code=404, detail="Recording not found")
@@ -278,7 +286,7 @@ def update_recording(recording_id: int, request: UpdateRecordingRequest, db: Ses
     return recording
 
 @router.put("/{recording_id}/speakers")
-def update_speaker(recording_id: int, request: UpdateSpeakerRequest, db: Session = Depends(get_db)):
+def update_speaker(recording_id: int, request: UpdateSpeakerRequest, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     # Find transcript
     transcript = db.query(Transcript).filter(Transcript.recording_id == recording_id).first()
     if not transcript:
@@ -321,3 +329,80 @@ def update_speaker(recording_id: int, request: UpdateSpeakerRequest, db: Session
     db.refresh(transcript)
     
     return {"message": "Speaker updated", "updated_count": updated_count, "content": transcript.content}
+
+@router.delete("/{recording_id}", status_code=204)
+def delete_recording(recording_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    recording = db.query(Recording).filter(Recording.id == recording_id).first()
+    if not recording:
+        raise HTTPException(status_code=404, detail="Recording not found")
+    
+    # Delete file from filesystem
+    if recording.file_path and os.path.exists(recording.file_path):
+        try:
+            os.remove(recording.file_path)
+        except Exception as e:
+            print(f"Error deleting file: {e}")
+            
+    db.delete(recording)
+    db.commit()
+    return None
+
+import urllib.parse
+
+@router.get("/{recording_id}/transcript/export")
+def export_transcript(recording_id: int, format: str = "docx", db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    recording = db.query(Recording).filter(Recording.id == recording_id).first()
+    if not recording:
+        raise HTTPException(status_code=404, detail="Recording not found")
+        
+    transcript = db.query(Transcript).filter(Transcript.recording_id == recording_id).first()
+    if not transcript or not transcript.content:
+        raise HTTPException(status_code=404, detail="Transcript not found")
+        
+    filename = f"{recording.filename}_transcript"
+    
+    if format.lower() == "pdf":
+        file_stream = export_transcript_pdf(transcript.content, recording.filename)
+        media_type = "application/pdf"
+        filename += ".pdf"
+    else: # default to docx
+        file_stream = export_transcript_docx(transcript.content, recording.filename)
+        media_type = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+        filename += ".docx"
+        
+    # URL encode the filename to handle non-ASCII characters safely in headers
+    encoded_filename = urllib.parse.quote(filename)
+    headers = {
+        "Content-Disposition": f"attachment; filename*=UTF-8''{encoded_filename}"
+    }
+    
+    return StreamingResponse(file_stream, media_type=media_type, headers=headers)
+
+@router.get("/{recording_id}/minutes/export")
+def export_minutes(recording_id: int, format: str = "docx", db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    recording = db.query(Recording).filter(Recording.id == recording_id).first()
+    if not recording:
+        raise HTTPException(status_code=404, detail="Recording not found")
+        
+    minutes = db.query(MeetingMinutes).filter(MeetingMinutes.recording_id == recording_id).first()
+    if not minutes or not minutes.content:
+        raise HTTPException(status_code=404, detail="Minutes not found")
+        
+    filename = f"{recording.filename}_minutes"
+    
+    if format.lower() == "pdf":
+        file_stream = export_minutes_pdf(minutes.content, recording.filename)
+        media_type = "application/pdf"
+        filename += ".pdf"
+    else: # default to docx
+        file_stream = export_minutes_docx(minutes.content, recording.filename)
+        media_type = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+        filename += ".docx"
+        
+    # URL encode the filename to handle non-ASCII characters safely in headers
+    encoded_filename = urllib.parse.quote(filename)
+    headers = {
+        "Content-Disposition": f"attachment; filename*=UTF-8''{encoded_filename}"
+    }
+    
+    return StreamingResponse(file_stream, media_type=media_type, headers=headers)
