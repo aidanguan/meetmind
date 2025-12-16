@@ -8,6 +8,7 @@ const router = useRouter();
 const props = defineProps<{
   projectName?: string;
   projectId?: string | number;
+  defaultCollapsed?: boolean;
 }>();
 
 const user = {
@@ -15,7 +16,7 @@ const user = {
   avatar: 'https://ui-avatars.com/api/?name=Admin+User&background=0D9488&color=fff'
 };
 
-const isCollapsed = ref(false);
+const isCollapsed = ref(props.defaultCollapsed || false);
 
 const menuItems = computed(() => [
   { 

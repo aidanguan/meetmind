@@ -62,6 +62,48 @@ const chatContainer = ref<HTMLElement | null>(null);
 const showSelectMinutesModal = ref(false);
 const selectedMinutesIds = ref<number[]>([]);
 
+// Hotwords State
+interface Hotword {
+    text: string;
+    weight: number;
+    lang: string;
+}
+
+const hotwords = ref<Hotword[]>([]);
+const isSavingSettings = ref(false);
+
+watch(() => project.value, (newVal) => {
+    if (newVal && newVal.hotwords) {
+        hotwords.value = JSON.parse(JSON.stringify(newVal.hotwords)); // Deep copy
+    } else {
+        hotwords.value = [];
+    }
+}, { immediate: true });
+
+const addHotword = () => {
+    hotwords.value.push({ text: '', weight: 4, lang: 'zh' });
+};
+
+const removeHotword = (index: number) => {
+    hotwords.value.splice(index, 1);
+};
+
+const saveSettings = async () => {
+    isSavingSettings.value = true;
+    try {
+        await api.patch(`/projects/${projectId}/hotwords`, {
+            hotwords: hotwords.value
+        });
+        ElMessage.success('设置已保存');
+        fetchProject(); // Refresh
+    } catch (error) {
+        console.error(error);
+        ElMessage.error('保存失败');
+    } finally {
+        isSavingSettings.value = false;
+    }
+};
+
 // Markdown Setup
 const md = new MarkdownIt({
   html: true,
@@ -88,22 +130,74 @@ const handleMessageClick = (e: MouseEvent) => {
   }
 };
 
-const renderMessage = (content: string) => {
-  if (!content) return '';
-  const html = md.render(content);
+const transformCitations = (html: string) => {
   // Replace [[Source]] with a styled icon + text button
   return html.replace(/\[\[(.*?)\]\]/g, (match, sourceName) => {
     let icon = 'description';
-    if (sourceName.toLowerCase().includes('minutes')) icon = 'event_note';
-    else if (sourceName.toLowerCase().includes('transcript')) icon = 'record_voice_over';
-    else if (sourceName.toLowerCase().includes('knowledge')) icon = 'library_books';
+    let url = '';
+    let isLink = false;
+    let displayName = sourceName;
+    let isCitation = false;
+
+    // Parse sourceName to determine type and URL
+    // Formats: 
+    // Minutes_Filename_ID
+    // Transcript_Filename_ID
+    // PRD_ProjectID, SPECS_ProjectID, etc.
     
-    return `<span class="source-link inline-flex items-center gap-1 px-1.5 py-0.5 mx-1 rounded bg-primary/10 hover:bg-primary/20 text-primary text-xs font-medium cursor-pointer transition-colors align-middle" data-source="${sourceName}" title="点击查看来源: ${sourceName}">
-      <span class="material-symbols-outlined text-[12px]">${icon}</span>
-      <span>${sourceName}</span>
-      <span class="material-symbols-outlined text-[10px]">open_in_new</span>
-    </span>`;
+    if (sourceName.toLowerCase().includes('minutes')) {
+        icon = 'event_note';
+        const match = sourceName.match(/^Minutes_(.*)_(\d+)$/i);
+        if (match) {
+            const filename = match[1];
+            const id = match[2];
+            url = `/recording/${id}/minutes`;
+            isLink = true;
+            displayName = filename; // Show filename only
+            isCitation = true;
+        }
+    } else if (sourceName.toLowerCase().includes('transcript')) {
+        icon = 'record_voice_over';
+        const match = sourceName.match(/^Transcript_(.*)_(\d+)$/i);
+        if (match) {
+            url = `/recording/${match[2]}`; // ID is group 2 if group 1 is filename
+            isLink = true;
+        }
+    } else if (sourceName.match(/^(PRD|SPECS|TIMELINE|GLOSSARY)_(\d+)$/i)) {
+        icon = 'library_books';
+        const match = sourceName.match(/^(PRD|SPECS|TIMELINE|GLOSSARY)_(\d+)$/i);
+        if (match) {
+            url = `/project/${match[2]}?tab=kb`;
+            isLink = true;
+        }
+    }
+    
+    if (isLink) {
+        if (isCitation) {
+            // Styled as a corner mark / superscript citation
+            return `<a href="${url}" target="_blank" class="inline-flex items-center justify-center px-0.5 mx-0.5 rounded-sm text-primary hover:text-primary-hover hover:bg-primary/10 cursor-pointer transition-colors no-underline select-none align-super" title="来源: ${displayName}" style="vertical-align: super; line-height: 1;">
+              <span class="material-symbols-outlined text-[10px] font-bold">link</span>
+            </a>`;
+        } else {
+            return `<a href="${url}" target="_blank" class="inline-flex items-center gap-1 px-1.5 py-0.5 mx-1 rounded bg-primary/10 hover:bg-primary/20 text-primary text-xs font-medium cursor-pointer transition-colors align-middle no-underline select-none" title="在新标签页打开: ${sourceName}">
+              <span class="material-symbols-outlined text-[12px]">${icon}</span>
+              <span>${sourceName}</span>
+              <span class="material-symbols-outlined text-[10px]">open_in_new</span>
+            </a>`;
+        }
+    } else {
+        return `<span class="inline-flex items-center gap-1 px-1.5 py-0.5 mx-1 rounded bg-primary/10 text-primary text-xs font-medium align-middle cursor-default select-none" title="${sourceName}">
+          <span class="material-symbols-outlined text-[12px]">${icon}</span>
+          <span>${sourceName}</span>
+        </span>`;
+    }
   });
+};
+
+const renderMessage = (content: string) => {
+  if (!content) return '';
+  const html = md.render(content);
+  return transformCitations(html);
 };
 
 // Custom fence rule for mermaid
@@ -128,7 +222,8 @@ const availableMinutes = computed(() => {
 const renderedKbContent = computed(() => {
   if (!knowledgeBase.value || !knowledgeBase.value.content) return '';
   const content = knowledgeBase.value.content[activeKbSection.value] || '*No content for this section.*';
-  return md.render(content);
+  const html = md.render(content);
+  return transformCitations(html);
 });
 
 const isUserInteracting = ref(false);
@@ -267,7 +362,8 @@ const sendChatMessage = async () => {
               if (line.startsWith('event:')) {
                   const lineParts = line.split('\n');
                   const eventLine = lineParts[0];
-                  const dataLine = lineParts[1];
+                  // Join the rest as data line, in case data contains newlines (though usually it's single line JSON)
+                  const dataLine = lineParts.slice(1).join('\n'); 
                   
                   if (eventLine && dataLine) {
                       const event = eventLine.replace('event: ', '').trim();
@@ -283,7 +379,11 @@ const sendChatMessage = async () => {
                               if (!assistantMsg.actions) assistantMsg.actions = [];
                               assistantMsg.actions.push({ tool: data.tool, query: data.query });
                           } else if (event === 'answer') {
-                              assistantMsg.content = data.content; 
+                              // Append content for streaming effect
+                              // Note: backend sends chunks, so we should append, not replace?
+                              // Actually backend implementation: full_answer += chunk; yield chunk
+                              // So data.content is just the chunk.
+                              assistantMsg.content += data.content; 
                           } else if (event === 'session_id') {
                               // If backend created a session implicitly (fallback), update our ID
                               // But we create explicit session first now, so this is just a sync
@@ -387,6 +487,9 @@ const confirmDelete = async (id: number) => {
   }
 };
 
+const showResearchModal = ref(false);
+const researchStatusMessage = ref('');
+
 const openGenerateModal = () => {
   // Pre-select all by default
   selectedMinutesIds.value = availableMinutes.value.map(r => r.minutes_id!);
@@ -401,6 +504,8 @@ const confirmGenerate = async () => {
   
   isGeneratingKB.value = true;
   showSelectMinutesModal.value = false;
+  showResearchModal.value = true;
+  researchStatusMessage.value = "Starting Deep Research Agent...";
   
   // Initialize knowledge base structure if null
   if (!knowledgeBase.value) {
@@ -423,54 +528,51 @@ const confirmGenerate = async () => {
     });
 
     if (!response.ok) throw new Error('Generation failed');
+    if (!response.body) throw new Error('No response body');
 
-    const reader = response.body?.getReader();
+    const reader = response.body.getReader();
     const decoder = new TextDecoder();
-    
-    if (!reader) throw new Error('No reader');
-
-    ElMessage.success('知识库生成任务已开始...');
+    let buffer = '';
 
     while (true) {
         const { done, value } = await reader.read();
         if (done) break;
         
-        const chunk = decoder.decode(value);
-        const lines = chunk.split('\n\n');
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split('\n\n');
+        buffer = lines.pop() || '';
         
         for (const line of lines) {
-            if (line.startsWith('event:')) {
-                const eventLine = line.split('\n')[0];
-                const dataLine = line.split('\n')[1];
+            if (line.startsWith('event: ')) {
+                const [eventLine, ...dataLines] = line.split('\n');
+                const event = eventLine.replace('event: ', '').trim();
+                const dataStr = dataLines.join('\n').replace('data: ', '').trim();
                 
-                if (eventLine && dataLine) {
-                    const event = eventLine.replace('event: ', '').trim();
-                    const dataStr = dataLine.replace('data: ', '');
-                    
-                    if (event === 'chunk') {
+                if (dataStr) {
+                    if (event === 'status') {
                         try {
                             const data = JSON.parse(dataStr);
-                            if (knowledgeBase.value && knowledgeBase.value.content) {
-                                // If this is the first chunk for this section, initialize it or clear it if we are regenerating
-                                if (knowledgeBase.value.content[data.section] === undefined) {
-                                    knowledgeBase.value.content[data.section] = '';
-                                }
-                                knowledgeBase.value.content[data.section] += data.chunk;
-                                
-                                // Auto switch tab to the active generating section if user hasn't switched manually
-                                if (activeKbSection.value !== data.section && !isUserInteracting.value) {
-                                     activeKbSection.value = data.section;
-                                }
-                            }
-                        } catch (e) {
-                            console.error('JSON parse error', e);
-                        }
+                            researchStatusMessage.value = data.message;
+                        } catch (e) { console.error(e); }
                     } else if (event === 'done') {
-                        isGeneratingKB.value = false;
-                        ElMessage.success('知识库生成完成！');
+                        try {
+                            const data = JSON.parse(dataStr);
+                            if (knowledgeBase.value && data.content) {
+                                knowledgeBase.value.content = data.content;
+                            }
+                            isGeneratingKB.value = false;
+                            showResearchModal.value = false;
+                            ElMessage.success('知识库生成完成！');
+                        } catch (e) { console.error(e); }
                     } else if (event === 'error') {
-                        ElMessage.error(`生成出错: ${dataStr}`);
+                        try {
+                           const data = JSON.parse(dataStr);
+                           ElMessage.error(`生成出错: ${data.message}`);
+                        } catch(e) {
+                           ElMessage.error(`生成出错: ${dataStr}`);
+                        }
                         isGeneratingKB.value = false;
+                        showResearchModal.value = false;
                     }
                 }
             }
@@ -481,6 +583,7 @@ const confirmGenerate = async () => {
     console.error(error);
     ElMessage.error('生成失败');
     isGeneratingKB.value = false;
+    showResearchModal.value = false;
   }
 };
 
@@ -518,7 +621,7 @@ onMounted(() => {
 <template>
   <div class="min-h-screen flex bg-background-light dark:bg-background-dark font-sans text-text-main dark:text-gray-100">
     <!-- Sidebar -->
-    <AppSidebar :project-id="projectId" :project-name="project.name" />
+    <AppSidebar :project-id="projectId" :project-name="project.name" :default-collapsed="true" />
 
     <!-- Main Content -->
     <main class="flex-1 flex flex-col h-screen overflow-hidden">
@@ -540,8 +643,8 @@ onMounted(() => {
         </header>
 
         <!-- Content Scroll Area -->
-        <div class="flex-1 flex flex-col lg:p-10" :class="activeTab === 'chat' ? 'overflow-hidden p-2 pb-0' : 'overflow-y-auto p-6'">
-            <div class="max-w-6xl mx-auto flex flex-col gap-8 w-full" :class="activeTab === 'chat' ? 'h-full' : ''">
+        <div class="flex-1 flex flex-col lg:p-6" :class="activeTab === 'chat' ? 'overflow-hidden p-2 pb-0' : 'overflow-y-auto p-4'">
+            <div class="max-w-[1920px] mx-auto flex flex-col gap-8 w-full px-4 lg:px-8" :class="activeTab === 'chat' ? 'h-full' : ''">
                 
                 <!-- Header Info -->
                 <div v-if="activeTab !== 'chat'" class="flex flex-col sm:flex-row sm:items-start justify-between gap-4">
@@ -551,10 +654,18 @@ onMounted(() => {
                       项目创建于 {{ new Date(project.created_at).toLocaleDateString() }} • 包含 {{ recordings.length }} 个文件
                     </p>
                   </div>
-                  <button class="flex items-center justify-center gap-2 rounded-lg h-9 px-4 bg-white dark:bg-surface-dark border border-border-light dark:border-border-dark text-text-main dark:text-gray-200 text-sm font-medium hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors shadow-sm">
+                  <button 
+                    v-if="activeTab === 'kb'"
+                    @click="openGenerateModal"
+                    class="flex items-center justify-center gap-2 rounded-lg h-9 px-4 bg-white dark:bg-surface-dark border border-border-light dark:border-border-dark text-text-main dark:text-gray-200 text-sm font-medium hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors shadow-sm"
+                  >
+                    <span class="material-symbols-outlined text-[18px]">refresh</span>
+                    <span>重新生成</span>
+                  </button>
+                  <!-- <button class="flex items-center justify-center gap-2 rounded-lg h-9 px-4 bg-white dark:bg-surface-dark border border-border-light dark:border-border-dark text-text-main dark:text-gray-200 text-sm font-medium hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors shadow-sm">
                     <span class="material-symbols-outlined text-[18px]">edit</span>
                     <span>编辑详情</span>
-                  </button>
+                  </button> -->
                 </div>
 
                 <!-- FILES VIEW -->
@@ -723,12 +834,12 @@ onMounted(() => {
                                 {{ item.label }}
                             </button>
                             
-                            <div class="h-px bg-border-light dark:bg-border-dark my-2 mx-2"></div>
+                            <!-- <div class="h-px bg-border-light dark:bg-border-dark my-2 mx-2"></div>
                             
                             <button @click="openGenerateModal" class="flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium text-primary hover:bg-primary/5 transition-colors text-left">
                                 <span class="material-symbols-outlined text-[20px]">refresh</span>
                                 重新生成
-                            </button>
+                            </button> -->
                         </div>
 
                         <!-- Content Area -->
@@ -738,12 +849,67 @@ onMounted(() => {
                      </div>
                 </div>
                 
-                <!-- SETTINGS VIEW (Placeholder) -->
+                <!-- SETTINGS VIEW -->
                 <div v-show="activeTab === 'settings'" class="flex flex-col gap-8 animate-in fade-in duration-300">
-                    <div class="bg-surface-light dark:bg-surface-dark rounded-xl border border-border-light dark:border-border-dark p-8 shadow-sm text-center">
-                        <span class="material-symbols-outlined text-4xl text-gray-300 mb-4">settings</span>
-                        <h2 class="text-xl font-bold text-text-main dark:text-white">项目设置</h2>
-                        <p class="text-text-muted mt-2">功能开发中...</p>
+                    <div class="bg-surface-light dark:bg-surface-dark rounded-xl border border-border-light dark:border-border-dark p-8 shadow-sm">
+                        <div class="flex items-center justify-between mb-6">
+                            <h2 class="text-xl font-bold text-text-main dark:text-white">项目设置</h2>
+                            <button @click="saveSettings" :disabled="isSavingSettings" class="flex items-center gap-2 px-4 py-2 rounded-lg bg-primary hover:bg-primary-hover text-white text-sm font-medium transition-colors shadow-sm disabled:opacity-50">
+                                <span v-if="isSavingSettings" class="material-symbols-outlined animate-spin text-[18px]">progress_activity</span>
+                                <span v-else class="material-symbols-outlined text-[18px]">save</span>
+                                保存设置
+                            </button>
+                        </div>
+
+                        <!-- Hotwords Section -->
+                        <div class="flex flex-col gap-4">
+                            <div class="flex items-center justify-between">
+                                <div>
+                                    <h3 class="text-base font-bold text-text-main dark:text-white">专业术语表 (Hotwords)</h3>
+                                    <p class="text-sm text-text-muted mt-1">
+                                        添加项目特定的专业术语，以提高语音转录的准确性。
+                                        <a href="https://help.aliyun.com/zh/model-studio/custom-hot-words" target="_blank" class="text-primary hover:underline">了解更多</a>
+                                    </p>
+                                </div>
+                                <button @click="addHotword" class="flex items-center gap-1 px-3 py-1.5 rounded-lg border border-border-light dark:border-border-dark hover:bg-gray-50 dark:hover:bg-gray-800 text-sm font-medium transition-colors">
+                                    <span class="material-symbols-outlined text-[18px]">add</span>
+                                    添加词条
+                                </button>
+                            </div>
+
+                            <div class="border border-border-light dark:border-border-dark rounded-lg overflow-hidden">
+                                <div class="grid grid-cols-12 gap-4 px-4 py-2 bg-gray-50 dark:bg-gray-800/50 border-b border-border-light dark:border-border-dark text-xs font-semibold text-text-muted">
+                                    <div class="col-span-6">术语文本</div>
+                                    <div class="col-span-2">权重 (1-5)</div>
+                                    <div class="col-span-2">语言</div>
+                                    <div class="col-span-2 text-right">操作</div>
+                                </div>
+                                
+                                <div v-if="hotwords.length === 0" class="p-8 text-center text-text-muted text-sm">
+                                    暂无自定义术语
+                                </div>
+
+                                <div v-for="(word, index) in hotwords" :key="index" class="grid grid-cols-12 gap-4 px-4 py-3 items-center border-b border-border-light dark:border-border-dark last:border-0 hover:bg-gray-50 dark:hover:bg-gray-800/30 transition-colors">
+                                    <div class="col-span-6">
+                                        <input v-model="word.text" type="text" placeholder="输入术语 (如: MeetMind)" class="w-full px-3 py-1.5 rounded border border-gray-300 dark:border-gray-600 bg-transparent text-sm focus:ring-1 focus:ring-primary focus:border-primary">
+                                    </div>
+                                    <div class="col-span-2">
+                                         <input v-model.number="word.weight" type="number" min="1" max="5" class="w-full px-3 py-1.5 rounded border border-gray-300 dark:border-gray-600 bg-transparent text-sm focus:ring-1 focus:ring-primary focus:border-primary">
+                                    </div>
+                                    <div class="col-span-2">
+                                        <select v-model="word.lang" class="w-full px-3 py-1.5 rounded border border-gray-300 dark:border-gray-600 bg-transparent text-sm focus:ring-1 focus:ring-primary focus:border-primary">
+                                            <option value="zh">中文</option>
+                                            <option value="en">English</option>
+                                        </select>
+                                    </div>
+                                    <div class="col-span-2 text-right">
+                                        <button @click="removeHotword(index)" class="text-gray-400 hover:text-red-500 transition-colors p-1">
+                                            <span class="material-symbols-outlined text-[18px]">delete</span>
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
                     </div>
                 </div>
 
@@ -806,7 +972,7 @@ onMounted(() => {
                                     <div class="flex flex-col gap-2 w-full min-w-0">
                                         
                                         <!-- Thoughts / Actions -->
-                                        <div v-if="msg.thoughts && msg.thoughts.length > 0" class="flex flex-col gap-2">
+                                        <div v-if="msg.isStreaming && msg.thoughts && msg.thoughts.length > 0" class="flex flex-col gap-2">
                                             <div v-for="(thought, tIdx) in msg.thoughts" :key="tIdx" class="bg-gray-50 dark:bg-gray-800/50 border border-gray-100 dark:border-gray-700 rounded-lg p-3 text-xs text-gray-500 dark:text-gray-400 font-mono">
                                                 <div class="flex items-center gap-2 mb-1 text-gray-400">
                                                     <span class="material-symbols-outlined text-[14px]">psychology</span>
@@ -892,6 +1058,18 @@ onMounted(() => {
                 </button>
             </div>
         </template>
+    </el-dialog>
+
+    <el-dialog v-model="showResearchModal" title="Deep Research in Progress" width="500px" align-center :close-on-click-modal="false" :show-close="false" class="rounded-xl">
+        <div class="flex flex-col items-center justify-center py-8 gap-6">
+            <div class="relative size-16">
+                 <span class="material-symbols-outlined text-6xl text-primary animate-pulse">psychology</span>
+            </div>
+            <div class="text-center">
+                <h3 class="text-lg font-bold text-text-main dark:text-white mb-2">AI is researching...</h3>
+                <p class="text-text-muted text-sm px-4 animate-pulse">{{ researchStatusMessage }}</p>
+            </div>
+        </div>
     </el-dialog>
 
   </div>

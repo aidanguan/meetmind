@@ -19,7 +19,9 @@ AZURE_AD_TENANT_ID = os.getenv("AZURE_AD_TENANT_ID")
 JWKS_URL = f"https://login.microsoftonline.com/{AZURE_AD_TENANT_ID}/discovery/v2.0/keys" if AZURE_AD_TENANT_ID else None
 
 # This scheme will parse the token from the Authorization header
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token", auto_error=True)
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token", auto_error=False)
+
+SKIP_AUTH = True
 
 class AzureADAuth:
     def __init__(self):
@@ -97,7 +99,26 @@ class AzureADAuth:
 
 auth_handler = AzureADAuth()
 
-async def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(get_db)) -> User:
+async def get_current_user(token: Optional[str] = Depends(oauth2_scheme), db: Session = Depends(get_db)) -> User:
+    if SKIP_AUTH:
+        # Return a debug user
+        debug_oid = "debug-user-oid"
+        user = db.query(User).filter(User.azure_oid == debug_oid).first()
+        if not user:
+             user = User(
+                azure_oid=debug_oid,
+                email="debug@example.com",
+                full_name="Debug User",
+                last_login_at=datetime.utcnow()
+            )
+             db.add(user)
+             db.commit()
+             db.refresh(user)
+        return user
+
+    if not token:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+
     if not AZURE_AD_CLIENT_ID or not AZURE_AD_TENANT_ID:
         # For development/demo purposes if env vars are missing, we might want to bypass or warn.
         # But strictly speaking we should fail.

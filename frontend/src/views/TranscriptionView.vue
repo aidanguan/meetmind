@@ -37,10 +37,15 @@ const mediaSrc = computed(() => {
 const mediaType = computed(() => {
   if (!recording.value || !recording.value.media_url) return '';
   const url: string = recording.value.media_url.toLowerCase();
-  if (url.endsWith('.m4a') || url.endsWith('.mp4')) return 'audio/mp4';
+  if (url.endsWith('.m4a')) return 'audio/mp4';
+  if (url.endsWith('.mp4')) return 'video/mp4';
   if (url.endsWith('.wav')) return 'audio/wav';
   if (url.endsWith('.ogg')) return 'audio/ogg';
   return 'audio/mpeg';
+});
+
+const isVideo = computed(() => {
+    return mediaType.value.startsWith('video/');
 });
 
 // Helper for formatting time MM:SS
@@ -175,17 +180,27 @@ const changeSpeed = () => {
 };
 
 const seekTo = (ms: number, endMs?: number) => {
-  if (audioRef.value) {
+  const element = audioRef.value;
+  if (element) {
     const startMs = Number(ms);
     if (isNaN(startMs)) return;
 
     // Helper to perform the seek and play
     const doSeekAndPlay = () => {
-        if (!audioRef.value) return;
-        
         // Always seek
         const timeInSeconds = startMs / 1000;
-        audioRef.value.currentTime = timeInSeconds;
+        
+        // Ensure valid time
+        if (timeInSeconds >= 0 && timeInSeconds <= element.duration) {
+             element.currentTime = timeInSeconds;
+        } else {
+             console.warn("Invalid seek time:", timeInSeconds, "Duration:", element.duration);
+             if (element.duration && timeInSeconds > element.duration) {
+                 element.currentTime = element.duration;
+             } else {
+                 element.currentTime = 0;
+             }
+        }
         
         // Set stop point
         if (endMs) {
@@ -195,7 +210,7 @@ const seekTo = (ms: number, endMs?: number) => {
         }
 
         // Ensure we play
-        audioRef.value.play().then(() => {
+        element.play().then(() => {
             isPlaying.value = true;
         }).catch(e => {
             console.error("Playback failed:", e);
@@ -203,15 +218,17 @@ const seekTo = (ms: number, endMs?: number) => {
     };
 
     // If metadata is loaded, we can seek immediately
-    if (audioRef.value.readyState >= 1) { // HAVE_METADATA
+    if (element.readyState >= 1) { // HAVE_METADATA
         doSeekAndPlay();
     } else {
         // Wait for metadata to load
         const onLoaded = () => {
             doSeekAndPlay();
-            audioRef.value?.removeEventListener('loadedmetadata', onLoaded);
+            element.removeEventListener('loadedmetadata', onLoaded);
         };
-        audioRef.value.addEventListener('loadedmetadata', onLoaded);
+        element.addEventListener('loadedmetadata', onLoaded);
+        // Force load if needed
+        element.load();
     }
   }
 };
@@ -465,6 +482,9 @@ const handleExport = (format: string) => {
                     </template>
                 </div>
                 <div class="flex items-center gap-3">
+                    <button @click="retryTranscribe" class="flex items-center justify-center w-9 h-9 bg-white dark:bg-surface-dark border border-border-light dark:border-border-dark rounded-lg text-text-main dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors shadow-sm" title="重新转写">
+                        <span class="material-symbols-outlined text-[18px]">refresh</span>
+                    </button>
                     <button @click="copyTranscript" class="flex items-center justify-center w-9 h-9 bg-white dark:bg-surface-dark border border-border-light dark:border-border-dark rounded-lg text-text-main dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors shadow-sm" title="复制文本">
                         <span class="material-symbols-outlined text-[18px]">content_copy</span>
                     </button>
@@ -529,19 +549,16 @@ const handleExport = (format: string) => {
 
             <template v-else>
                 <div v-for="(segment, index) in filteredTranscript" :key="index"
-                    class="flex gap-3 p-2 rounded-lg transition-all cursor-pointer border border-transparent group relative hover:bg-white/60 dark:hover:bg-surface-dark/40"
+                    class="flex gap-3 p-2 rounded-lg transition-all cursor-pointer border border-transparent group relative"
                     :class="[
-                        currentTime >= segment.start && currentTime <= segment.end
-                        ? 'bg-surface-light dark:bg-surface-dark shadow-soft border-border-light dark:border-border-dark' 
-                        : ''
+                        activeSegmentIndex === index ? 'bg-primary/5 border-primary/20 shadow-sm' : 'hover:bg-white/60 dark:hover:bg-surface-dark/40'
                     ]"
                     @click="seekTo(segment.start, segment.end)">
                     
-                    <!-- Left Active Indicator -->
+                    <!-- Active Indicator -->
                     <div class="absolute left-0 top-2 bottom-2 w-1 rounded-r-full transition-opacity duration-200"
                         :class="[
-                            getAvatarColor(segment.speaker_id),
-                            (activeSegmentIndex === index) ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'
+                            activeSegmentIndex === index ? 'bg-primary opacity-100' : getAvatarColor(segment.speaker_id).replace('bg-', 'bg-').concat(' opacity-0 group-hover:opacity-100')
                         ]">
                     </div>
 
@@ -650,8 +667,11 @@ const handleExport = (format: string) => {
                 <div class="w-9"></div> <!-- Spacer -->
             </div>
 
-            <!-- Hidden Audio Element -->
-            <audio ref="audioRef" class="hidden" @timeupdate="onTimeUpdate" @loadedmetadata="onLoadedMetadata" @ended="onEnded" v-if="recording && recording.media_url">
+            <!-- Hidden Audio/Video Element -->
+            <video ref="audioRef" class="hidden" @timeupdate="onTimeUpdate" @loadedmetadata="onLoadedMetadata" @ended="onEnded" v-if="recording && recording.media_url && isVideo" preload="auto">
+                <source :src="mediaSrc" :type="mediaType">
+            </video>
+            <audio ref="audioRef" class="hidden" @timeupdate="onTimeUpdate" @loadedmetadata="onLoadedMetadata" @ended="onEnded" v-else-if="recording && recording.media_url" preload="auto">
                 <source :src="mediaSrc" :type="mediaType">
             </audio>
         </div>

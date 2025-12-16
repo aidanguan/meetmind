@@ -28,6 +28,8 @@ class Project(Base):
     id = Column(Integer, primary_key=True, index=True)
     name = Column(String(255), index=True)
     description = Column(Text, nullable=True)
+    hotwords = Column(JSON, nullable=True) # List of {text, weight, lang}
+    vocabulary_id = Column(String(255), nullable=True)
     created_at = Column(DateTime, default=datetime.datetime.utcnow)
 
     recordings = relationship("Recording", back_populates="project", cascade="all, delete-orphan")
@@ -39,6 +41,7 @@ class ProjectKnowledgeBase(Base):
     id = Column(Integer, primary_key=True, index=True)
     project_id = Column(Integer, ForeignKey("projects.id"))
     content = Column(JSON) # { "prd": "...", "specs": "...", "timeline": "...", "glossary": "..." }
+    gemini_files = Column(JSON, nullable=True) # { "prd": "uri...", "specs": "uri..." }
     created_at = Column(DateTime, default=datetime.datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.datetime.utcnow, onupdate=datetime.datetime.utcnow)
 
@@ -70,6 +73,7 @@ class Transcript(Base):
     recording_id = Column(Integer, ForeignKey("recordings.id"))
     content = Column(JSON) # List of segments: {start, end, text, speaker_id}
     plain_text = Column(LONGTEXT) # Full text for search/display
+    gemini_file_uri = Column(String(255), nullable=True)
     created_at = Column(DateTime, default=datetime.datetime.utcnow)
 
     recording = relationship("Recording", back_populates="transcript")
@@ -80,6 +84,7 @@ class MeetingMinutes(Base):
     id = Column(Integer, primary_key=True, index=True)
     recording_id = Column(Integer, ForeignKey("recordings.id"))
     content = Column(Text) # Markdown content
+    gemini_file_uri = Column(String(255), nullable=True)
     created_at = Column(DateTime, default=datetime.datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.datetime.utcnow, onupdate=datetime.datetime.utcnow)
 

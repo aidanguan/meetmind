@@ -203,9 +203,13 @@ def stream_minutes(recording_id: int, context: str = "", db: Session = Depends(g
     meta_context = f"Title: {recording.filename}, Date: {recording.created_at}"
     full_context = f"{meta_context}. {context}"
 
+    meeting_date = None
+    if recording.created_at:
+         meeting_date = recording.created_at.strftime("%Y-%m-%d")
+
     async def generate_and_save():
         full_content = ""
-        stream = llm_service.stream_minutes_generator(transcript_text, full_context)
+        stream = llm_service.stream_minutes_generator(transcript_text, full_context, meeting_date=meeting_date)
         for chunk in stream:
             full_content += chunk
             yield chunk
@@ -223,6 +227,20 @@ def stream_minutes(recording_id: int, context: str = "", db: Session = Depends(g
                     content=full_content
                 )
                 new_db.add(minutes)
+            
+            # Upload to Gemini
+            try:
+                if llm_service.use_google:
+                    uri = llm_service.upload_to_gemini(
+                        full_content, 
+                        mime_type="text/markdown", 
+                        display_name=f"Minutes_{recording.filename}_{recording.id}"
+                    )
+                    if uri:
+                        minutes.gemini_file_uri = uri
+            except Exception as upload_err:
+                print(f"Error uploading streamed minutes to Gemini: {upload_err}")
+
             new_db.commit()
             new_db.close()
         except Exception as e:

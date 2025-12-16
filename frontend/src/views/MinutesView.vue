@@ -45,10 +45,15 @@ const mediaSrc = computed(() => {
 const mediaType = computed(() => {
   if (!recording.value || !recording.value.media_url) return '';
   const url: string = recording.value.media_url.toLowerCase();
-  if (url.endsWith('.m4a') || url.endsWith('.mp4')) return 'audio/mp4';
+  if (url.endsWith('.m4a')) return 'audio/mp4';
+  if (url.endsWith('.mp4')) return 'video/mp4';
   if (url.endsWith('.wav')) return 'audio/wav';
   if (url.endsWith('.ogg')) return 'audio/ogg';
   return 'audio/mpeg';
+});
+
+const isVideo = computed(() => {
+    return mediaType.value.startsWith('video/');
 });
 
 const fetchRecording = async () => {
@@ -274,7 +279,7 @@ const handleExport = (format: string) => {
 </script>
 
 <template>
-  <div class="h-screen flex flex-col bg-background-light dark:bg-background-dark font-sans text-text-main dark:text-gray-100 selection:bg-primary/10 selection:text-primary">
+  <div class="min-h-screen flex flex-col bg-background-light dark:bg-background-dark font-sans text-text-main dark:text-gray-100 selection:bg-primary/10 selection:text-primary">
     <!-- Global Header -->
     <header class="flex items-center justify-between whitespace-nowrap border-b border-border-light dark:border-border-dark bg-background-light/80 dark:bg-surface-dark/90 backdrop-blur-md px-6 py-3 sticky top-0 z-50 transition-colors duration-300">
       <div class="flex items-center gap-3 cursor-pointer" @click="router.push('/')">
@@ -299,7 +304,7 @@ const handleExport = (format: string) => {
       </div>
     </header>
 
-    <div class="flex-1 flex flex-col overflow-hidden max-w-7xl mx-auto w-full p-4 sm:p-6 lg:p-8">
+    <div class="flex-1 flex flex-col max-w-7xl mx-auto w-full p-4 sm:p-6 lg:p-8">
       
       <!-- Header Section (Breadcrumb + Title) -->
       <div class="mb-6">
@@ -429,14 +434,17 @@ const handleExport = (format: string) => {
               {{ playbackRate }}x
           </button>
 
-          <!-- Hidden Audio Element -->
-          <audio ref="audioRef" class="hidden" @timeupdate="onTimeUpdate" @loadedmetadata="onLoadedMetadata" @ended="onEnded" v-if="recording && recording.media_url">
-              <source :src="mediaSrc" :type="mediaType">
-          </audio>
+          <!-- Hidden Audio/Video Element -->
+            <video ref="audioRef" class="hidden" @timeupdate="onTimeUpdate" @loadedmetadata="onLoadedMetadata" @ended="onEnded" v-if="recording && recording.media_url && isVideo" preload="auto">
+                <source :src="mediaSrc" :type="mediaType">
+            </video>
+            <audio ref="audioRef" class="hidden" @timeupdate="onTimeUpdate" @loadedmetadata="onLoadedMetadata" @ended="onEnded" v-else-if="recording && recording.media_url" preload="auto">
+                <source :src="mediaSrc" :type="mediaType">
+            </audio>
       </div>
 
       <!-- Minutes Content Area (Full Width) -->
-      <div class="flex-1 bg-surface-light dark:bg-surface-dark rounded-xl shadow-card border border-border-light dark:border-border-dark overflow-hidden flex flex-col min-h-0">
+      <div class="flex-1 bg-surface-light dark:bg-surface-dark rounded-xl shadow-card border border-border-light dark:border-border-dark flex flex-col">
           
           <!-- Toolbar -->
           <div class="px-6 py-4 border-b border-border-light dark:border-border-dark flex items-center justify-between bg-gray-50/50 dark:bg-surface-dark/50">
@@ -469,7 +477,7 @@ const handleExport = (format: string) => {
           </div>
 
           <!-- Content Body -->
-          <div class="flex-1 overflow-y-auto p-6 lg:p-8 relative">
+          <div class="flex-1 p-6 lg:p-8 relative">
               
               <textarea 
                   v-if="isEditingMinutes"

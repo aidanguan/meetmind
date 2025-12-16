@@ -1,6 +1,6 @@
 from celery_worker import celery_app
 from database import SessionLocal
-from models import Recording, RecordingStatus, Transcript, MeetingMinutes
+from models import Recording, RecordingStatus, Transcript, MeetingMinutes, Project
 from services.aliyun import AliyunService
 from services.llm import LLMService
 from services.oss import OSSService
@@ -25,6 +25,12 @@ def transcribe_audio(recording_id: int):
         # Check multiple env names to decide real vs mock
         aliyun_key = os.getenv("DASHSCOPE_API_KEY") or os.getenv("ALIYUN_TOKEN") or os.getenv("ALIYUN_APPKEY")
         if aliyun_key:
+            # Fetch Project to get vocabulary_id
+            project = db.query(Project).filter(Project.id == recording.project_id).first()
+            vocabulary_id = project.vocabulary_id if project else None
+            
+            print(f"DEBUG: Starting transcription for recording {recording.id} with vocabulary_id: {vocabulary_id}")
+
             # Real Call with retries
             attempts = 0
             max_attempts = 3
@@ -33,7 +39,7 @@ def transcribe_audio(recording_id: int):
             while attempts < max_attempts:
                 try:
                     object_name, file_url = OSSService.upload_file(recording.file_path)
-                    task_response = AliyunService.transcribe(file_url=file_url)
+                    task_response = AliyunService.transcribe(file_url=file_url, vocabulary_id=vocabulary_id)
                     result = AliyunService.get_task_result(task_response.output.task_id)
                     print(f"DEBUG: DashScope Result: {result}")
                     if getattr(result.output, "task_status", "") == "SUCCEEDED":
@@ -110,6 +116,21 @@ def transcribe_audio(recording_id: int):
             content=mock_content,
             plain_text=plain_text
         )
+        
+        # Upload to Gemini Files API
+        try:
+            llm_service = LLMService()
+            if llm_service.use_google:
+                uri = llm_service.upload_to_gemini(
+                    plain_text, 
+                    mime_type="text/plain", 
+                    display_name=f"Transcript_{recording.filename}_{recording.id}"
+                )
+                if uri:
+                    transcript.gemini_file_uri = uri
+        except Exception as upload_err:
+            print(f"Error uploading transcript to Gemini: {upload_err}")
+
         db.add(transcript)
         recording.status = RecordingStatus.COMPLETED
         db.commit()
@@ -143,12 +164,31 @@ def generate_minutes(recording_id: int, context: str = ""):
     try:
         llm = LLMService()
         transcript_text = recording.transcript.plain_text
-        minutes_text = llm.generate_minutes(transcript_text, context)
+        
+        meeting_date = None
+        if recording.created_at:
+             meeting_date = recording.created_at.strftime("%Y-%m-%d")
+
+        minutes_text = llm.generate_minutes(transcript_text, context, meeting_date=meeting_date)
         
         minutes = MeetingMinutes(
             recording_id=recording.id,
             content=minutes_text
         )
+
+        # Upload to Gemini Files API
+        try:
+            if llm.use_google:
+                uri = llm.upload_to_gemini(
+                    minutes_text, 
+                    mime_type="text/markdown", 
+                    display_name=f"Minutes_{recording.filename}_{recording.id}"
+                )
+                if uri:
+                    minutes.gemini_file_uri = uri
+        except Exception as upload_err:
+            print(f"Error uploading minutes to Gemini: {upload_err}")
+
         db.add(minutes)
         db.commit()
     except Exception as e:

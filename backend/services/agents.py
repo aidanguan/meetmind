@@ -71,10 +71,13 @@ You are tasked with generating project documentation based on a series of meetin
 **CRITICAL RULES:**
 1.  **Chronological Priority**: The provided context is ordered chronologically. If there are contradictions or changes in requirements between meetings, **strictly prioritize the information from the LATEST meeting (the ones at the bottom of the context)**. Treat earlier meetings as historical context that might have been superseded.
 2.  **Format**: Output strictly in **Markdown**.
-3.  **Mermaid Diagrams**: 
+3.  **Language**: The output MUST be in **Chinese (Simplified)**.
+4.  **Mermaid Diagrams**: 
     *   You are ENCOURAGED to use Mermaid diagrams to visualize information.
     *   Use ````mermaid` code blocks.
-    *   Ensure the Mermaid syntax is correct.
+    *   **CRITICAL**: Ensure node IDs in Mermaid do not contain special characters like `+`, `(`, `)`, or Chinese characters directly in the ID part. Use strict alphanumeric IDs and put the label in quotes/brackets.
+    *   Example: `A[医助建立家庭群]` is OK. `A[医助+患者]` is OK. `医助+患者[Error]` is BAD.
+    *   Avoid using `+` inside node IDs. `createGroup[医助建立家庭群]` is good.
 """
 
         if task_type == "prd":
