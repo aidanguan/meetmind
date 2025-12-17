@@ -286,7 +286,7 @@ const handleExport = (format: string) => {
         <div class="size-9 text-primary dark:text-white flex items-center justify-center rounded-lg bg-primary/5 dark:bg-white/10">
           <span class="material-symbols-outlined text-[22px]">graphic_eq</span>
         </div>
-        <h2 class="text-lg font-bold tracking-tight text-text-main dark:text-white">TranscribeWeb</h2>
+        <h2 class="text-lg font-bold tracking-tight text-text-main dark:text-white">MeetMind</h2>
       </div>
       <div class="flex items-center gap-3">
         <button class="flex items-center justify-center rounded-lg size-9 text-text-muted hover:text-text-main hover:bg-black/5 dark:text-gray-400 dark:hover:bg-white/10 transition-colors">
