@@ -21,6 +21,14 @@ interface Recording {
   minutes_id?: number | null;
 }
 
+interface ProjectDocument {
+  id: number;
+  filename: string;
+  file_type: string;
+  created_at: string;
+  gemini_file_uri?: string;
+}
+
 interface KnowledgeBase {
   id: number;
   content: Record<string, string>; // { prd: "...", timeline: "..." }
@@ -29,11 +37,68 @@ interface KnowledgeBase {
 
 // State
 const recordings = ref<Recording[]>([]);
+const documents = ref<ProjectDocument[]>([]);
 const project = ref<any>({});
 const activeTab = ref<'files' | 'kb' | 'settings' | 'chat'>('files');
 const knowledgeBase = ref<KnowledgeBase | null>(null);
 const activeKbSection = ref('prd');
 const isGeneratingKB = ref(false);
+const isUploading = ref(false);
+
+// File List State
+const fileTypeFilter = ref<string>('all');
+const uploadType = ref<string>('recording');
+
+const uploadAccept = computed(() => {
+    if (uploadType.value === 'recording') return 'audio/*,video/*';
+    return '.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt';
+});
+
+const uploadAction = computed(() => {
+    if (uploadType.value === 'recording') return `/api/recordings/upload/${projectId}`;
+    return `/api/projects/${projectId}/documents`;
+});
+
+const uploadData = computed(() => {
+    if (uploadType.value === 'recording') return {};
+    return { file_type: uploadType.value };
+});
+
+const allFiles = computed(() => {
+  let files: any[] = [];
+  
+  // Map recordings
+  recordings.value.forEach(r => {
+    files.push({
+      ...r,
+      type: 'recording',
+      displayType: 'Meeting Recording',
+      category: 'recording'
+    });
+  });
+
+  // Map documents
+  documents.value.forEach(d => {
+    files.push({
+      ...d,
+      type: 'document',
+      displayType: d.file_type.toUpperCase(),
+      category: d.file_type
+    });
+  });
+
+  // Filter
+  if (fileTypeFilter.value !== 'all') {
+    if (fileTypeFilter.value === 'recording') {
+      files = files.filter(f => f.type === 'recording');
+    } else {
+      files = files.filter(f => f.category === fileTypeFilter.value);
+    }
+  }
+
+  // Sort by date desc
+  return files.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+});
 
 // Chat State
 interface ChatMessage {
@@ -61,6 +126,7 @@ const chatContainer = ref<HTMLElement | null>(null);
 // Modal State
 const showSelectMinutesModal = ref(false);
 const selectedMinutesIds = ref<number[]>([]);
+const selectedDocumentIds = ref<number[]>([]);
 
 // Hotwords State
 interface Hotword {
@@ -115,78 +181,116 @@ const md = new MarkdownIt({
 const handleMessageClick = (e: MouseEvent) => {
   const target = e.target as HTMLElement;
   const link = target.closest('.source-link') as HTMLElement;
-  if (link && link.dataset.source) {
-      const source = link.dataset.source;
-      if (source.includes('Knowledge Base')) {
+  
+  if (link) {
+      e.preventDefault();
+      const type = link.dataset.type;
+      const id = link.dataset.id;
+      const section = link.dataset.section;
+
+      if (type === 'minutes' && id) {
+          router.push(`/recording/${id}/minutes`);
+      } else if (type === 'transcript' && id) {
+          router.push(`/recording/${id}`);
+      } else if (type === 'kb') {
           activeTab.value = 'kb';
-          const lower = source.toLowerCase();
-          if (lower.includes('prd')) activeKbSection.value = 'prd';
-          else if (lower.includes('spec')) activeKbSection.value = 'specs';
-          else if (lower.includes('timeline')) activeKbSection.value = 'timeline';
-          else if (lower.includes('glossary')) activeKbSection.value = 'glossary';
-      } else if (source.includes('Meeting Minutes')) {
+          if (section) activeKbSection.value = section;
+      } else if (type === 'document') {
           activeTab.value = 'files';
+          fileTypeFilter.value = 'all'; // Reset filter to show all files
+          // Ideally we would highlight the file, but for now just navigating is good.
+          ElMessage.info('已跳转到文件列表');
       }
   }
 };
 
 const transformCitations = (html: string) => {
-  // Replace [[Source]] with a styled icon + text button
+  // Replace [[Source]] with a styled interactive link
   return html.replace(/\[\[(.*?)\]\]/g, (match, sourceName) => {
     let icon = 'description';
-    let url = '';
-    let isLink = false;
+    let type = '';
+    let id = '';
+    let section = '';
     let displayName = sourceName;
     let isCitation = false;
+    let href = '#';
 
-    // Parse sourceName to determine type and URL
+    // Parse sourceName
     // Formats: 
     // Minutes_Filename_ID
     // Transcript_Filename_ID
+    // Document_Filename_ID
     // PRD_ProjectID, SPECS_ProjectID, etc.
     
     if (sourceName.toLowerCase().includes('minutes')) {
         icon = 'event_note';
         const match = sourceName.match(/^Minutes_(.*)_(\d+)$/i);
         if (match) {
-            const filename = match[1];
-            const id = match[2];
-            url = `/recording/${id}/minutes`;
-            isLink = true;
-            displayName = filename; // Show filename only
+            displayName = match[1];
+            id = match[2];
+            type = 'minutes';
+            href = `/recording/${id}/minutes`;
             isCitation = true;
         }
     } else if (sourceName.toLowerCase().includes('transcript')) {
         icon = 'record_voice_over';
         const match = sourceName.match(/^Transcript_(.*)_(\d+)$/i);
         if (match) {
-            url = `/recording/${match[2]}`; // ID is group 2 if group 1 is filename
-            isLink = true;
+            displayName = match[1];
+            id = match[2];
+            type = 'transcript';
+            href = `/recording/${id}`;
+            isCitation = true;
         }
-    } else if (sourceName.match(/^(PRD|SPECS|TIMELINE|GLOSSARY)_(\d+)$/i)) {
+    } else if (sourceName.match(/^(PRD|SPECS|TIMELINE|GLOSSARY|BUSINESS)_(\d+)$/i)) {
         icon = 'library_books';
-        const match = sourceName.match(/^(PRD|SPECS|TIMELINE|GLOSSARY)_(\d+)$/i);
+        const match = sourceName.match(/^(PRD|SPECS|TIMELINE|GLOSSARY|BUSINESS)_(\d+)$/i);
         if (match) {
-            url = `/project/${match[2]}?tab=kb`;
-            isLink = true;
+            const key = match[1].toLowerCase();
+            if (key === 'prd') section = 'prd';
+            else if (key === 'specs') section = 'specs';
+            else if (key === 'timeline') section = 'timeline';
+            else if (key === 'glossary') section = 'glossary';
+            else if (key === 'business') section = 'business_flows';
+            
+            displayName = {
+                'prd': '需求文档',
+                'specs': '功能说明书',
+                'timeline': '时间表',
+                'glossary': '术语表',
+                'business_flows': '业务流程'
+            }[section] || section;
+            
+            type = 'kb';
+            href = `/project/${projectId}?tab=kb`;
+            isCitation = true;
+        }
+    } else if (sourceName.toLowerCase().startsWith('document_')) {
+        icon = 'article';
+        const match = sourceName.match(/^Document_(.*)_(\d+)$/i);
+        if (match) {
+            displayName = match[1];
+            id = match[2];
+            type = 'document';
+            href = `/project/${projectId}?tab=files`;
+            isCitation = true;
         }
     }
     
-    if (isLink) {
-        if (isCitation) {
-            // Styled as a corner mark / superscript citation
-            return `<a href="${url}" target="_blank" class="inline-flex items-center justify-center px-0.5 mx-0.5 rounded-sm text-primary hover:text-primary-hover hover:bg-primary/10 cursor-pointer transition-colors no-underline select-none align-super" title="来源: ${displayName}" style="vertical-align: super; line-height: 1;">
-              <span class="material-symbols-outlined text-[10px] font-bold">link</span>
-            </a>`;
-        } else {
-            return `<a href="${url}" target="_blank" class="inline-flex items-center gap-1 px-1.5 py-0.5 mx-1 rounded bg-primary/10 hover:bg-primary/20 text-primary text-xs font-medium cursor-pointer transition-colors align-middle no-underline select-none" title="在新标签页打开: ${sourceName}">
-              <span class="material-symbols-outlined text-[12px]">${icon}</span>
-              <span>${sourceName}</span>
-              <span class="material-symbols-outlined text-[10px]">open_in_new</span>
-            </a>`;
-        }
+    if (isCitation) {
+        // Styled as a clickable link
+        return `<a href="${href}" class="source-link inline-flex items-center gap-1 px-1.5 py-0.5 mx-1 rounded bg-primary/10 hover:bg-primary/20 text-primary text-xs font-medium cursor-pointer transition-colors align-middle no-underline select-none" 
+            data-type="${type}" 
+            data-id="${id}" 
+            data-section="${section}"
+            title="查看来源: ${displayName}">
+            <span class="material-symbols-outlined text-[12px]">${icon}</span>
+            <span class="max-w-[150px] truncate">${displayName}</span>
+            <span class="material-symbols-outlined text-[10px]">open_in_new</span>
+        </a>`;
     } else {
-        return `<span class="inline-flex items-center gap-1 px-1.5 py-0.5 mx-1 rounded bg-primary/10 text-primary text-xs font-medium align-middle cursor-default select-none" title="${sourceName}">
+        // Fallback for unrecognized format
+        return `<span class="inline-flex items-center gap-1 px-1.5 py-0.5 mx-1 rounded bg-primary/10 text-primary text-xs font-medium align-middle cursor-default select-none">
           <span class="material-symbols-outlined text-[12px]">${icon}</span>
           <span>${sourceName}</span>
         </span>`;
@@ -243,6 +347,18 @@ watch(renderedKbContent, async () => {
 watch(activeKbSection, () => {
     isUserInteracting.value = true;
 });
+
+// Watch chat messages to render mermaid diagrams
+watch(chatMessages, async () => {
+  await nextTick();
+  try {
+    await mermaid.run({
+      querySelector: '.mermaid'
+    });
+  } catch (e) {
+    // console.error('Mermaid render error:', e);
+  }
+}, { deep: true });
 
 // Sync activeTab with route query
 watch(
@@ -429,6 +545,15 @@ const fetchRecordings = async () => {
   }
 };
 
+const fetchDocuments = async () => {
+  try {
+    const res = await api.get(`/projects/${projectId}/documents`);
+    documents.value = res.data;
+  } catch (error) {
+    console.error(error);
+  }
+};
+
 const fetchKnowledgeBase = async () => {
   try {
     const res = await api.get(`/projects/${projectId}/knowledge-base`);
@@ -440,9 +565,21 @@ const fetchKnowledgeBase = async () => {
   }
 };
 
+const handleBeforeUpload = () => {
+  isUploading.value = true;
+  return true;
+};
+
 const handleUploadSuccess = () => {
+  isUploading.value = false;
   ElMessage.success('上传成功');
   fetchRecordings();
+  fetchDocuments();
+};
+
+const handleUploadError = () => {
+  isUploading.value = false;
+  ElMessage.error('上传失败');
 };
 
 const startTranscribe = async (id: number) => {
@@ -463,10 +600,10 @@ const viewMinutes = (id: number) => {
   router.push(`/recording/${id}/minutes`);
 };
 
-const confirmDelete = async (id: number) => {
+const confirmDelete = async (file: any) => {
   try {
     await ElMessageBox.confirm(
-      '确定要删除这个录音文件吗？此操作不可恢复。',
+      '确定要删除这个文件吗？此操作不可恢复。',
       '删除确认',
       {
         confirmButtonText: '删除',
@@ -476,9 +613,15 @@ const confirmDelete = async (id: number) => {
       }
     );
     
-    await api.delete(`/recordings/${id}`);
+    if (file.type === 'recording') {
+        await api.delete(`/recordings/${file.id}`);
+        fetchRecordings();
+    } else {
+        await api.delete(`/projects/${projectId}/documents/${file.id}`);
+        fetchDocuments();
+    }
+
     ElMessage.success('删除成功');
-    fetchRecordings();
   } catch (error) {
     if (error !== 'cancel') {
         console.error(error);
@@ -493,12 +636,13 @@ const researchStatusMessage = ref('');
 const openGenerateModal = () => {
   // Pre-select all by default
   selectedMinutesIds.value = availableMinutes.value.map(r => r.minutes_id!);
+  selectedDocumentIds.value = documents.value.map(d => d.id);
   showSelectMinutesModal.value = true;
 };
 
 const confirmGenerate = async () => {
-  if (selectedMinutesIds.value.length === 0) {
-    ElMessage.warning('请至少选择一个会议纪要');
+  if (selectedMinutesIds.value.length === 0 && selectedDocumentIds.value.length === 0) {
+    ElMessage.warning('请至少选择一个参考文件');
     return;
   }
   
@@ -511,7 +655,7 @@ const confirmGenerate = async () => {
   if (!knowledgeBase.value) {
       knowledgeBase.value = {
           id: 0,
-          content: { prd: '', specs: '', timeline: '', glossary: '' },
+          content: { prd: '', specs: '', business_flows: '', timeline: '', glossary: '' },
           updated_at: new Date().toISOString()
       };
   }
@@ -523,7 +667,8 @@ const confirmGenerate = async () => {
             'Content-Type': 'application/json'
         },
         body: JSON.stringify({
-            minutes_ids: selectedMinutesIds.value
+            minutes_ids: selectedMinutesIds.value,
+            document_ids: selectedDocumentIds.value
         })
     });
 
@@ -612,6 +757,7 @@ const getStatusConfig = (status: string) => {
 onMounted(() => {
   fetchProject();
   fetchRecordings();
+  fetchDocuments();
   fetchKnowledgeBase();
   fetchChatSessions();
   mermaid.initialize({ startOnLoad: false, theme: 'default' });
@@ -673,98 +819,145 @@ onMounted(() => {
                     <!-- File List Section -->
                     <div class="flex flex-col gap-4">
                       <div class="flex items-center justify-between">
-                        <h2 class="text-lg font-bold text-text-main dark:text-white">文件列表</h2>
-                        <el-upload
-                          class="flex"
-                          :action="`/api/recordings/upload/${projectId}`"
-                          :on-success="handleUploadSuccess"
-                          :show-file-list="false"
-                          multiple
-                        >
-                          <button class="flex items-center gap-2 px-4 py-2 rounded-lg bg-teal-600 hover:bg-teal-700 text-white text-sm font-medium transition-colors shadow-sm">
-                              <span class="material-symbols-outlined text-[20px]">cloud_upload</span>
-                              上传录音
-                          </button>
-                        </el-upload>
+                        <div class="flex items-center gap-4">
+                            <h2 class="text-lg font-bold text-text-main dark:text-white">文件列表</h2>
+                            <select v-model="fileTypeFilter" class="px-3 py-1.5 rounded-lg border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark text-sm text-text-main dark:text-gray-300 focus:ring-1 focus:ring-primary outline-none">
+                                <option value="all">所有类型</option>
+                                <option value="recording">会议录音</option>
+                                <option value="rfp">需求文档 (RFP)</option>
+                                <option value="design">设计方案</option>
+                                <option value="test_plan">测试方案</option>
+                                <option value="manual">操作手册</option>
+                                <option value="other">其他文件</option>
+                            </select>
+                        </div>
+
+                        <div class="flex items-center bg-teal-600 rounded-lg hover:bg-teal-700 transition-colors shadow-sm overflow-hidden">
+                            <div class="relative border-r border-white/20">
+                                <select v-model="uploadType" class="appearance-none bg-transparent text-white text-sm font-medium pl-3 pr-8 py-2 outline-none cursor-pointer">
+                                    <option value="recording" class="text-gray-800">录音</option>
+                                    <option value="rfp" class="text-gray-800">RFP</option>
+                                    <option value="design" class="text-gray-800">设计</option>
+                                    <option value="test_plan" class="text-gray-800">测试</option>
+                                    <option value="manual" class="text-gray-800">手册</option>
+                                    <option value="other" class="text-gray-800">其他</option>
+                                </select>
+                                <span class="material-symbols-outlined text-white text-[16px] absolute right-1 top-1/2 -translate-y-1/2 pointer-events-none">arrow_drop_down</span>
+                            </div>
+                            <el-upload
+                              class="flex"
+                              :action="uploadAction"
+                              :data="uploadData"
+                              :accept="uploadAccept"
+                              :before-upload="handleBeforeUpload"
+                              :on-success="handleUploadSuccess"
+                              :on-error="handleUploadError"
+                              :show-file-list="false"
+                              multiple
+                              :disabled="isUploading"
+                            >
+                              <button class="flex items-center gap-2 px-4 py-2 text-white text-sm font-medium disabled:opacity-70 disabled:cursor-not-allowed" :disabled="isUploading">
+                                  <span v-if="isUploading" class="material-symbols-outlined text-[20px] animate-spin">progress_activity</span>
+                                  <span v-else class="material-symbols-outlined text-[20px]">cloud_upload</span>
+                                  {{ isUploading ? '上传中...' : '上传' }}
+                              </button>
+                            </el-upload>
+                        </div>
                       </div>
 
                       <div class="bg-surface-light dark:bg-surface-dark rounded-xl border border-border-light dark:border-border-dark shadow-card overflow-hidden flex flex-col">
                         <!-- Table Header -->
                         <div class="hidden sm:grid grid-cols-12 gap-4 px-6 py-3 bg-background-light dark:bg-surface-dark/50 border-b border-border-light dark:border-border-dark text-xs font-semibold text-text-muted dark:text-gray-500">
-                          <div class="col-span-6 pl-1">文件名称</div>
-                          <div class="col-span-1">上传日期</div>
-                          <div class="col-span-1">时长</div>
+                          <div class="col-span-5 pl-1">文件名称</div>
+                          <div class="col-span-2">类型</div>
+                          <div class="col-span-2">上传日期</div>
                           <div class="col-span-1 text-center">状态</div>
-                          <div class="col-span-3 text-right pr-2">操作</div>
+                          <div class="col-span-2 text-right pr-2">操作</div>
                         </div>
 
                         <!-- Table Body -->
                         <div class="divide-y divide-border-light dark:divide-border-dark">
-                          <div v-if="recordings.length === 0" class="px-6 py-12 text-center flex flex-col items-center gap-3">
+                          <div v-if="allFiles.length === 0" class="px-6 py-12 text-center flex flex-col items-center gap-3">
                             <div class="size-12 rounded-full bg-gray-50 dark:bg-gray-800 flex items-center justify-center">
                                <span class="material-symbols-outlined text-gray-300 text-[24px]">folder_open</span>
                             </div>
-                            <p class="text-text-muted dark:text-gray-500 text-sm">暂无文件，请上传录音开始。</p>
+                            <p class="text-text-muted dark:text-gray-500 text-sm">暂无文件，请上传文件开始。</p>
                           </div>
 
-                          <div v-for="recording in recordings" :key="recording.id" class="flex flex-col sm:grid sm:grid-cols-12 gap-3 sm:gap-4 px-6 py-4 hover:bg-background-light/50 dark:hover:bg-white/5 transition-colors group items-center">
+                          <div v-for="file in allFiles" :key="file.type + file.id" class="flex flex-col sm:grid sm:grid-cols-12 gap-3 sm:gap-4 px-6 py-4 hover:bg-background-light/50 dark:hover:bg-white/5 transition-colors group items-center">
                             <!-- Name -->
-                            <div class="col-span-6 flex items-center gap-4 w-full min-w-0">
+                            <div class="col-span-5 flex items-center gap-4 w-full min-w-0">
                               <div class="size-10 rounded-lg bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-300 flex items-center justify-center shrink-0 border border-gray-200 dark:border-gray-700">
-                                <span class="material-symbols-outlined">mic</span>
+                                <span class="material-symbols-outlined">{{ file.type === 'recording' ? 'mic' : 'description' }}</span>
                               </div>
                               <div class="flex flex-col min-w-0 gap-0.5">
-                                <h3 class="text-sm font-bold text-text-main dark:text-white truncate">{{ recording.filename }}</h3>
-                                <p class="text-xs text-text-muted dark:text-gray-500 truncate font-medium">{{ (recording.duration / 60).toFixed(1) }} min</p>
+                                <h3 class="text-sm font-bold text-text-main dark:text-white truncate">{{ file.filename }}</h3>
+                                <p v-if="file.type === 'recording'" class="text-xs text-text-muted dark:text-gray-500 truncate font-medium">{{ (file.duration / 60).toFixed(1) }} min</p>
+                                <p v-else class="text-xs text-text-muted dark:text-gray-500 truncate font-medium">Document</p>
                               </div>
+                            </div>
+
+                            <!-- Type -->
+                            <div class="col-span-2">
+                                <span class="inline-flex px-2 py-1 rounded bg-gray-100 dark:bg-gray-800 text-xs text-gray-600 dark:text-gray-400 font-medium">
+                                    {{ file.displayType }}
+                                </span>
                             </div>
 
                             <!-- Date -->
-                            <div class="col-span-1 text-sm text-text-muted dark:text-gray-400 font-medium pl-[56px] sm:pl-0 whitespace-nowrap">
-                              {{ new Date(recording.created_at).toLocaleDateString() }}
-                            </div>
-
-                            <!-- Duration -->
-                            <div class="col-span-1 text-sm text-text-muted dark:text-gray-400 font-medium pl-[56px] sm:pl-0">
-                              {{ formatDuration(recording.duration) }}
+                            <div class="col-span-2 text-sm text-text-muted dark:text-gray-400 font-medium pl-[56px] sm:pl-0 whitespace-nowrap">
+                              {{ new Date(file.created_at).toLocaleDateString() }}
                             </div>
 
                             <!-- Status -->
                             <div class="col-span-1 flex justify-start sm:justify-center pl-[56px] sm:pl-0">
-                              <span :class="['inline-flex items-center justify-center size-7 rounded-full border', getStatusConfig(recording.status).class]" :title="getStatusConfig(recording.status).text">
-                                 <span class="material-symbols-outlined text-[18px]" :class="{'animate-spin': recording.status === 'transcribing'}">
-                                   {{ getStatusConfig(recording.status).icon }}
-                                 </span>
-                              </span>
+                              <template v-if="file.type === 'recording'">
+                                  <span :class="['inline-flex items-center justify-center size-7 rounded-full border', getStatusConfig(file.status).class]" :title="getStatusConfig(file.status).text">
+                                     <span class="material-symbols-outlined text-[18px]" :class="{'animate-spin': file.status === 'transcribing'}">
+                                       {{ getStatusConfig(file.status).icon }}
+                                     </span>
+                                  </span>
+                              </template>
+                              <template v-else>
+                                  <span class="inline-flex items-center justify-center size-7 rounded-full border bg-green-50 text-green-700 dark:bg-green-900/30 dark:text-green-400 border-green-200 dark:border-green-800/50" title="已上传">
+                                     <span class="material-symbols-outlined text-[18px]">check_circle</span>
+                                  </span>
+                              </template>
                             </div>
 
                             <!-- Actions -->
-                            <div class="col-span-3 flex items-center justify-end gap-2 w-full sm:w-auto mt-2 sm:mt-0 pl-[56px] sm:pl-0">
-                              <template v-if="recording.status === 'pending'">
-                                <button @click="startTranscribe(recording.id)" class="flex items-center justify-center gap-1 h-8 px-3 rounded bg-primary hover:bg-primary-hover text-white text-xs font-medium transition-colors shadow-sm">
-                                  <span class="material-symbols-outlined text-[14px]">play_arrow</span>
-                                  转录
-                                </button>
+                            <div class="col-span-2 flex items-center justify-end gap-2 w-full sm:w-auto mt-2 sm:mt-0 pl-[56px] sm:pl-0">
+                              <template v-if="file.type === 'recording'">
+                                  <template v-if="file.status === 'pending'">
+                                    <button @click="startTranscribe(file.id)" class="flex items-center justify-center gap-1 h-8 px-3 rounded bg-primary hover:bg-primary-hover text-white text-xs font-medium transition-colors shadow-sm">
+                                      <span class="material-symbols-outlined text-[14px]">play_arrow</span>
+                                      转录
+                                    </button>
+                                  </template>
+                                  <template v-else-if="file.status === 'transcribing'">
+                                    <div class="flex items-center gap-2">
+                                      <button @click="viewTranscript(file.id)" class="flex items-center justify-center gap-1 h-8 px-3 rounded bg-white dark:bg-surface-dark border border-border-light dark:border-border-dark text-text-main dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 text-xs font-medium transition-colors shadow-sm whitespace-nowrap">
+                                        <span class="material-symbols-outlined text-[14px]">visibility</span>
+                                        查看进度
+                                      </button>
+                                    </div>
+                                  </template>
+                                  <template v-else-if="file.status === 'completed'">
+                                    <div class="flex items-center gap-2">
+                                      <button @click="viewTranscript(file.id)" class="flex items-center justify-center gap-1 h-8 px-3 rounded bg-white dark:bg-surface-dark border border-border-light dark:border-border-dark text-text-main dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 text-xs font-medium transition-colors shadow-sm whitespace-nowrap">
+                                        <span class="material-symbols-outlined text-[14px]">visibility</span>
+                                        转录
+                                      </button>
+                                      <button @click="viewMinutes(file.id)" class="flex items-center justify-center gap-1 h-8 px-3 rounded bg-primary/5 hover:bg-primary/10 border border-primary/20 text-primary dark:text-primary-light text-xs font-medium transition-colors shadow-sm whitespace-nowrap">
+                                        <span class="material-symbols-outlined text-[14px]">description</span>
+                                        纪要
+                                      </button>
+                                    </div>
+                                  </template>
                               </template>
-                              <template v-else-if="recording.status === 'transcribing'">
-                                <div class="flex items-center gap-2">
-                                  <button @click="viewTranscript(recording.id)" class="flex items-center justify-center gap-1 h-8 px-3 rounded bg-white dark:bg-surface-dark border border-border-light dark:border-border-dark text-text-main dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 text-xs font-medium transition-colors shadow-sm whitespace-nowrap">
-                                    <span class="material-symbols-outlined text-[14px]">visibility</span>
-                                    查看进度
-                                  </button>
-                                </div>
-                              </template>
-                              <template v-else-if="recording.status === 'completed'">
-                                <div class="flex items-center gap-2">
-                                  <button @click="viewTranscript(recording.id)" class="flex items-center justify-center gap-1 h-8 px-3 rounded bg-white dark:bg-surface-dark border border-border-light dark:border-border-dark text-text-main dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 text-xs font-medium transition-colors shadow-sm whitespace-nowrap">
-                                    <span class="material-symbols-outlined text-[14px]">visibility</span>
-                                    转录
-                                  </button>
-                                  <button @click="viewMinutes(recording.id)" class="flex items-center justify-center gap-1 h-8 px-3 rounded bg-primary/5 hover:bg-primary/10 border border-primary/20 text-primary dark:text-primary-light text-xs font-medium transition-colors shadow-sm whitespace-nowrap">
-                                    <span class="material-symbols-outlined text-[14px]">description</span>
-                                    纪要
-                                  </button>
-                                </div>
+                              <template v-else>
+                                  <!-- Document Actions: View? (Maybe just download link if needed, but for now just delete) -->
+                                  <!-- Could add a "View" button that opens media url -->
                               </template>
 
                               <!-- Delete Action for all statuses -->
@@ -774,7 +967,7 @@ onMounted(() => {
                                 </button>
                                 <template #dropdown>
                                   <el-dropdown-menu>
-                                    <el-dropdown-item @click="confirmDelete(recording.id)" class="text-red-500">
+                                    <el-dropdown-item @click="confirmDelete(file)" class="text-red-500">
                                       <div class="flex items-center gap-2 text-red-600">
                                         <span class="material-symbols-outlined text-[16px]">delete</span>
                                         删除
@@ -822,6 +1015,7 @@ onMounted(() => {
                                 v-for="item in [
                                     { id: 'prd', label: '需求文档 (PRD)', icon: 'description' },
                                     { id: 'specs', label: '功能说明书', icon: 'settings_suggest' },
+                                    { id: 'business_flows', label: '业务流程', icon: 'account_tree' },
                                     { id: 'timeline', label: '项目时间表', icon: 'calendar_month' },
                                     { id: 'glossary', label: '术语表', icon: 'menu_book' }
                                 ]"
@@ -1032,15 +1226,17 @@ onMounted(() => {
     </main>
 
     <!-- Select Minutes Modal -->
-    <el-dialog v-model="showSelectMinutesModal" title="选择参考会议" width="600px" align-center class="rounded-xl">
+    <el-dialog v-model="showSelectMinutesModal" title="选择参考资料" width="600px" align-center class="rounded-xl">
         <div class="flex flex-col gap-4">
-            <p class="text-sm text-text-muted">请选择用于生成知识库的会议纪要。系统将根据选中的会议内容进行分析，并以最新会议的结论为准。</p>
+            <p class="text-sm text-text-muted">请选择用于生成知识库的资料。系统将根据选中的内容进行分析。</p>
             
-            <div class="max-h-60 overflow-y-auto border border-border-light dark:border-border-dark rounded-lg divide-y divide-border-light dark:divide-border-dark">
+            <div class="max-h-[400px] overflow-y-auto border border-border-light dark:border-border-dark rounded-lg divide-y divide-border-light dark:divide-border-dark">
+                <!-- Meetings -->
+                <div class="px-3 py-2 bg-gray-50 dark:bg-gray-800/50 font-bold text-xs text-text-muted uppercase tracking-wider">会议纪要</div>
                 <div v-if="availableMinutes.length === 0" class="p-4 text-center text-text-muted text-sm">
-                    暂无已生成的会议纪要。请先去录音详情页生成纪要。
+                    暂无已生成的会议纪要。
                 </div>
-                <div v-for="r in availableMinutes" :key="r.id" class="p-3 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors flex items-center gap-3">
+                <div v-for="r in availableMinutes" :key="'m'+r.id" class="p-3 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors flex items-center gap-3">
                     <input type="checkbox" :value="r.minutes_id" v-model="selectedMinutesIds" class="rounded border-gray-300 text-primary focus:ring-primary size-4">
                     <div class="flex flex-col">
                         <span class="font-medium text-text-main dark:text-white text-sm">{{ r.filename }}</span>
@@ -1048,12 +1244,26 @@ onMounted(() => {
                     </div>
                     <span class="ml-auto text-xs px-2 py-0.5 bg-green-100 text-green-700 rounded-full">已生成纪要</span>
                 </div>
+
+                <!-- Documents -->
+                <div class="px-3 py-2 bg-gray-50 dark:bg-gray-800/50 font-bold text-xs text-text-muted uppercase tracking-wider border-t border-border-light dark:border-border-dark">项目文档</div>
+                <div v-if="documents.length === 0" class="p-4 text-center text-text-muted text-sm">
+                    暂无项目文档。
+                </div>
+                <div v-for="d in documents" :key="'d'+d.id" class="p-3 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors flex items-center gap-3">
+                    <input type="checkbox" :value="d.id" v-model="selectedDocumentIds" class="rounded border-gray-300 text-primary focus:ring-primary size-4">
+                    <div class="flex flex-col">
+                        <span class="font-medium text-text-main dark:text-white text-sm">{{ d.filename }}</span>
+                        <span class="text-xs text-text-muted">{{ new Date(d.created_at).toLocaleString() }} • {{ d.file_type }}</span>
+                    </div>
+                    <span class="ml-auto text-xs px-2 py-0.5 bg-blue-100 text-blue-700 rounded-full">已上传</span>
+                </div>
             </div>
         </div>
         <template #footer>
             <div class="flex justify-end gap-3">
                 <button @click="showSelectMinutesModal = false" class="px-4 py-2 rounded-lg border border-border-light dark:border-border-dark text-text-main hover:bg-gray-50 text-sm font-medium">取消</button>
-                <button @click="confirmGenerate" class="px-4 py-2 rounded-lg bg-primary hover:bg-primary-hover text-white text-sm font-bold shadow-sm disabled:opacity-50 disabled:cursor-not-allowed" :disabled="availableMinutes.length === 0">
+                <button @click="confirmGenerate" class="px-4 py-2 rounded-lg bg-primary hover:bg-primary-hover text-white text-sm font-bold shadow-sm disabled:opacity-50 disabled:cursor-not-allowed" :disabled="availableMinutes.length === 0 && documents.length === 0">
                     确认生成
                 </button>
             </div>

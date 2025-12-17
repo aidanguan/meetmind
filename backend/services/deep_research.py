@@ -25,18 +25,51 @@ class DeepResearchService:
         # So we can store state in the instance.
         self.pending_tasks = {}
 
-    def start_research(self, minutes_data: List[Dict[str, Any]]) -> str:
+    def start_research(self, minutes_data: List[Dict[str, Any]], documents_data: List[Dict[str, Any]] = None) -> str:
         """
-        Starts a deep research task based on the provided meeting minutes.
+        Starts a deep research task based on the provided meeting minutes and documents.
         Returns the interaction ID.
         """
-        logger.info(f"Starting Deep Research with {len(minutes_data)} minutes documents.")
+        if documents_data is None:
+            documents_data = []
+
+        logger.info(f"Starting Deep Research with {len(minutes_data)} minutes and {len(documents_data)} documents.")
         
         # Combine minutes into a context string
-        combined_text = "\n\n".join([f"--- Meeting Minute {i+1} (ID: {m['id']}, File: {m['filename']}) ---\n{m['content']}" for i, m in enumerate(minutes_data)])
+        minutes_text = "\n\n".join([f"--- Meeting Minute {i+1} (ID: {m['id']}, File: {m['filename']}) ---\n{m['content']}" for i, m in enumerate(minutes_data)])
+        
+        # Combine documents into a context string
+        # Note: If documents are files (PDF, etc.), we ideally need their text content.
+        # Since we are using LLMService which supports file URIs, but DeepResearch currently uses string context...
+        # We have a dilemma: DeepResearch uses chat_completion which takes text.
+        # If we want to support files, we need to use Gemini's file capability in the LLMService.
+        # However, deep_research.py's stream_research_updates uses self.llm.chat_completion_stream which defaults to text-only OpenAI format 
+        # unless we change how we call it.
+        #
+        # For now, assuming we can extract text or we pass text content if available.
+        # But ProjectDocument only has file_path. We haven't implemented text extraction for docs yet.
+        # 
+        # To fix this properly:
+        # 1. We should support passing file_uris to DeepResearch.
+        # 2. Update LLMService.chat_completion_stream to accept file_uris (it handles it for chat_with_files but that's a different method).
+        # 
+        # Let's modify stream_research_updates to handle file_uris if present in the task.
+        
+        docs_text_parts = []
+        file_uris = []
+        
+        for i, d in enumerate(documents_data):
+            if d.get('content'):
+                docs_text_parts.append(f"--- Document {i+1} (ID: {d['id']}, Type: {d['type']}, File: {d['filename']}) ---\n{d['content']}")
+            if d.get('gemini_uri'):
+                file_uris.append(d['gemini_uri'])
+                # We also add a reference marker in text so the model knows about it
+                docs_text_parts.append(f"--- Document {i+1} (ID: {d['id']}, Type: {d['type']}, File: {d['filename']}) ---\n[Attached File: {d['filename']}]")
+
+        documents_text = "\n\n".join(docs_text_parts)
         
         system_prompt = """You are a Senior Technical Architect and Product Manager.
-Your task is to analyze the provided Meeting Minutes and generate a comprehensive **Project Knowledge Base**.
+Your task is to analyze the provided Meeting Minutes and Project Documents to generate a comprehensive **Project Knowledge Base**.
 
 **CRITICAL REQUIREMENT**: The output MUST be in **Chinese (Simplified)**.
 
@@ -47,52 +80,62 @@ Your task is to analyze the provided Meeting Minutes and generate a comprehensiv
 
 **2. Visualizations (Mermaid)**:
    - Use `mermaid` code blocks to visualize complex information.
+   - **Syntax Constraints**:
+     - ALWAYS use quotes for node labels containing spaces or special characters: `A["Node Label"]`.
+     - Avoid using brackets `[]` or parentheses `()` inside labels unless quoted.
+     - Use `flowchart TD` or `graph TD` for processes.
    - **PRD**: 
      - User Journey Maps: `mermaid journey`
-     - Process Flowcharts: `mermaid graph TD`
+     - Process Flowcharts: `mermaid flowchart TD`
    - **Specs**: 
      - System Architecture: `mermaid C4` or `graph TB`
      - Entity Relationships: `mermaid erDiagram`
+   - **Business Logic**:
+     - State Machines: `mermaid stateDiagram-v2`
+     - Decision Trees: `mermaid flowchart TD`
    - **Timeline**: 
      - Project Roadmap: `mermaid gantt`
 
 **3. Citations & References**:
-   - **Inline Citations**: When stating a fact or decision, you MUST use the following specific format for citations: `Statement [[Minutes_{filename}_{id}]]`. 
-     - Do NOT use superscript tags like `<sup>[1]</sup>`. 
-     - Do NOT use standard markdown links `[1](...)`.
-     - The format `[[Minutes_{filename}_{id}]]` will be automatically rendered as a clickable badge by the frontend.
+   - **Inline Citations**: When stating a fact or decision, you MUST use the following specific format for citations: 
+     - For Minutes: `Statement [[Minutes_{filename}_{id}]]`
+     - For Documents: `Statement [[Document_{filename}_{id}]]`
    - **Reference List**: At the very end of the document, add a section `## 参考文献 (References)`.
    - **Reference Format**: List the sources using the same format:
      `1. [[Minutes_{filename}_{id}]]`
-     
-     Example:
-     > The project deadline is Q4 [[Minutes_KickoffMeeting_12]].
-     > ...
-     > ## 参考文献 (References)
-     > 1. [[Minutes_KickoffMeeting_12]]
+     `2. [[Document_{filename}_{id}]]`
 
 The Knowledge Base MUST include the following sections:
 1. **Project Requirements Document (PRD)**: Goals, User Stories, User Journey, Functional Requirements.
 2. **Technical Specifications**: Architecture, Tech Stack, Data Models (ER Diagram + Dictionary), API Design.
-3. **Logic Change Log**: Detailed tracking of logic changes (Old vs New).
-4. **Project Timeline**: 
+3. **Business Process & Logic**: 
+   - Core Business Workflows (with Mermaid flowcharts).
+   - State Transitions (e.g., Order Status).
+   - Key Decision Rules and Calculation Logic.
+4. **Logic Change Log**: Detailed tracking of logic changes (Old vs New).
+5. **Project Timeline**: 
    - **Gantt Chart**: `mermaid gantt`
    - **Timeline Table**: A Markdown table with columns (Phase, Task, Start Date, End Date, Owner, Status).
-5. **Glossary**: Key terms and definitions.
+6. **Glossary**: Key terms and definitions.
 
-Use the information strictly from the provided meeting minutes. 
+Use the information strictly from the provided meeting minutes and documents. 
 If information is missing for a section, state that it is "To Be Determined" or infer reasonably from context if possible, but mark as inferred.
 """
 
         user_prompt = f"""Here are the Meeting Minutes:
 
-{combined_text}
+{minutes_text}
+
+Here are the Project Documents:
+
+{documents_text}
 """
         
         task_id = str(uuid.uuid4())
         self.pending_tasks[task_id] = {
             "system": system_prompt,
-            "user": user_prompt
+            "user": user_prompt,
+            "file_uris": file_uris
         }
         
         return task_id
@@ -110,26 +153,32 @@ If information is missing for a section, state that it is "To Be Determined" or 
 
         yield {"status": "running", "message": "Deep Research Agent is analyzing and generating report..."}
         
-        # Simulate processing time slightly for UX (optional)
-        # time.sleep(1)
-
         try:
+            # We need to handle file_uris if present
+            file_uris = task.get("file_uris", [])
+            
+            # If we have file URIs, we MUST use Google model and chat_with_files logic
+            # But chat_with_files is a generator yielding chunks.
+            # LLMService.chat_with_files signature: (messages, file_uris, stream=True)
+            
             messages = [
                 {"role": "system", "content": task["system"]},
                 {"role": "user", "content": task["user"]}
             ]
             
             full_text = ""
-            # Use standard LLM streaming
-            stream = self.llm.chat_completion_stream(messages, temperature=0.2)
+            
+            if file_uris and self.llm.use_google:
+                stream = self.llm.chat_with_files(messages, file_uris, stream=True)
+            else:
+                stream = self.llm.chat_completion_stream(messages, temperature=0.2)
             
             for chunk in stream:
                 full_text += chunk
-                # We could yield partial results if the frontend supported it, 
-                # but the current contract expects "completed" with full result at the end.
-                # Or we can just keep yielding "running" updates if needed.
-                # Actually, yielding intermediate "running" prevents timeout.
-                
+                # Filter out error messages from stream if any (simple check)
+                if "**Error**" in chunk:
+                     logger.error(f"Stream error: {chunk}")
+            
             yield {"status": "completed", "result": full_text}
             
         except Exception as e:
@@ -139,11 +188,12 @@ If information is missing for a section, state that it is "To Be Determined" or 
     def parse_result(self, text: str) -> Dict[str, str]:
         """
         Parses the markdown result into sections.
-        Expected sections: PRD, Specs, Timeline, Glossary.
+        Expected sections: PRD, Specs, Business Flows, Timeline, Glossary.
         """
         sections = {
             "prd": "",
             "specs": "",
+            "business_flows": "",
             "timeline": "",
             "glossary": ""
         }
@@ -165,6 +215,9 @@ If information is missing for a section, state that it is "To Be Determined" or 
                      continue
                  elif "technical specifications" in lower_line or "technical specs" in lower_line:
                      current_section = "specs"
+                     continue
+                 elif "business process" in lower_line or "business logic" in lower_line or "业务流程" in lower_line:
+                     current_section = "business_flows"
                      continue
                  elif "project timeline" in lower_line:
                      current_section = "timeline"

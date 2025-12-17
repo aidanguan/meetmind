@@ -22,6 +22,13 @@ class RecordingStatus(str, enum.Enum):
     COMPLETED = "completed"
     ERROR = "error"
 
+class ProjectDocumentType(str, enum.Enum):
+    RFP = "rfp"
+    DESIGN = "design"
+    TEST_PLAN = "test_plan"
+    MANUAL = "manual"
+    OTHER = "other"
+
 class Project(Base):
     __tablename__ = "projects"
 
@@ -33,7 +40,21 @@ class Project(Base):
     created_at = Column(DateTime, default=datetime.datetime.utcnow)
 
     recordings = relationship("Recording", back_populates="project", cascade="all, delete-orphan")
+    documents = relationship("ProjectDocument", back_populates="project", cascade="all, delete-orphan")
     knowledge_base = relationship("ProjectKnowledgeBase", back_populates="project", uselist=False, cascade="all, delete-orphan")
+
+class ProjectDocument(Base):
+    __tablename__ = "project_documents"
+
+    id = Column(Integer, primary_key=True, index=True)
+    project_id = Column(Integer, ForeignKey("projects.id"))
+    filename = Column(String(255))
+    file_path = Column(String(512))
+    file_type = Column(Enum(ProjectDocumentType), default=ProjectDocumentType.OTHER)
+    gemini_file_uri = Column(String(255), nullable=True)
+    created_at = Column(DateTime, default=datetime.datetime.utcnow)
+
+    project = relationship("Project", back_populates="documents")
 
 class ProjectKnowledgeBase(Base):
     __tablename__ = "project_knowledge_bases"

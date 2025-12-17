@@ -1,11 +1,14 @@
-from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks
+from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks, UploadFile, File, Form
 from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 from database import get_db
-from models import Project, Recording, MeetingMinutes, ProjectKnowledgeBase, Transcript, ChatSession, ChatMessage
+from models import Project, Recording, MeetingMinutes, ProjectKnowledgeBase, Transcript, ChatSession, ChatMessage, ProjectDocument, ProjectDocumentType
 from pydantic import BaseModel
 from typing import List, Optional, Dict, Any
 import datetime
+import os
+import uuid
+import shutil
 from services.llm import LLMService
 from services.agents import KnowledgeBaseOrchestrator
 from services.deep_research import DeepResearchService
@@ -44,6 +47,7 @@ class ProjectSettingsUpdate(BaseModel):
 
 class GenerateKBRequest(BaseModel):
     minutes_ids: List[int]
+    document_ids: Optional[List[int]] = []
 
 class ChatRequest(BaseModel):
     query: str
@@ -62,6 +66,16 @@ class ChatMessageOut(BaseModel):
     role: str
     content: str
     thought_process: Optional[List[str]] = None
+    created_at: datetime.datetime
+
+    class Config:
+        orm_mode = True
+
+class ProjectDocumentOut(BaseModel):
+    id: int
+    project_id: int
+    filename: str
+    file_type: str
     created_at: datetime.datetime
 
     class Config:
@@ -129,8 +143,14 @@ def generate_knowledge_base_stream(
     # Use joinedload to eagerly load the recording relationship to avoid DetachedInstanceError in the generator thread
     from sqlalchemy.orm import joinedload
     minutes = db.query(MeetingMinutes).options(joinedload(MeetingMinutes.recording)).join(Recording).filter(MeetingMinutes.id.in_(request.minutes_ids)).all()
-    if not minutes:
-         raise HTTPException(status_code=400, detail="No valid minutes found")
+    
+    # Fetch documents
+    documents = []
+    if request.document_ids:
+        documents = db.query(ProjectDocument).filter(ProjectDocument.id.in_(request.document_ids)).all()
+    
+    if not minutes and not documents:
+         raise HTTPException(status_code=400, detail="No valid minutes or documents found")
 
     # We will stream the generation of ONE section or ALL sections sequentially.
     # To keep it simple for SSE, let's stream one by one, but maybe frontend wants to trigger them individually?
@@ -150,8 +170,20 @@ def generate_knowledge_base_stream(
                         "filename": m.recording.filename
                     })
             
+            documents_data = []
+            for d in documents:
+                documents_data.append({
+                    "id": d.id,
+                    "filename": d.filename,
+                    "type": d.file_type,
+                    "gemini_uri": d.gemini_file_uri,
+                    # We don't have text content for documents yet, but we pass URI.
+                    # DeepResearch service handles URI or text content.
+                    "content": None 
+                })
+
             service = DeepResearchService()
-            interaction_id = service.start_research(minutes_data)
+            interaction_id = service.start_research(minutes_data, documents_data)
             
             full_text = ""
             
@@ -317,6 +349,76 @@ def get_session_messages(session_id: int, db: Session = Depends(get_db), current
         ))
     return result
 
+@router.post("/{project_id}/documents", response_model=ProjectDocumentOut)
+def upload_document(
+    project_id: int, 
+    file: UploadFile = File(...), 
+    file_type: str = Form(...),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    project = db.query(Project).filter(Project.id == project_id).first()
+    if not project:
+        raise HTTPException(status_code=404, detail="Project not found")
+
+    UPLOAD_DIR = "/app/media"
+    if not os.path.exists(UPLOAD_DIR):
+        os.makedirs(UPLOAD_DIR)
+
+    file_ext = file.filename.split(".")[-1]
+    unique_filename = f"doc_{uuid.uuid4()}.{file_ext}"
+    file_path = os.path.join(UPLOAD_DIR, unique_filename)
+
+    with open(file_path, "wb") as buffer:
+        shutil.copyfileobj(file.file, buffer)
+
+    # Upload to Gemini
+    llm_service = LLMService()
+    
+    # Map common extensions to MIME types if needed (FastAPI UploadFile.content_type is usually reliable but sometimes generic)
+    mime_type = file.content_type
+    if not mime_type or mime_type == "application/octet-stream":
+        import mimetypes
+        mime_type, _ = mimetypes.guess_type(file.filename)
+        
+    gemini_uri = llm_service.upload_file_path_to_gemini(
+        file_path, 
+        mime_type=mime_type, 
+        display_name=f"{file_type}_{file.filename}"
+    )
+
+    db_doc = ProjectDocument(
+        project_id=project_id,
+        filename=file.filename,
+        file_path=file_path,
+        file_type=file_type,
+        gemini_file_uri=gemini_uri
+    )
+    db.add(db_doc)
+    db.commit()
+    db.refresh(db_doc)
+    return db_doc
+
+@router.get("/{project_id}/documents", response_model=List[ProjectDocumentOut])
+def list_documents(project_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    return db.query(ProjectDocument).filter(ProjectDocument.project_id == project_id).order_by(ProjectDocument.created_at.desc()).all()
+
+@router.delete("/{project_id}/documents/{doc_id}", status_code=204)
+def delete_document(project_id: int, doc_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    doc = db.query(ProjectDocument).filter(ProjectDocument.id == doc_id, ProjectDocument.project_id == project_id).first()
+    if not doc:
+        raise HTTPException(status_code=404, detail="Document not found")
+    
+    if doc.file_path and os.path.exists(doc.file_path):
+        try:
+            os.remove(doc.file_path)
+        except:
+            pass
+            
+    db.delete(doc)
+    db.commit()
+    return None
+
 @router.post("/{project_id}/chat")
 def chat_with_project(
     project_id: int, 
@@ -385,6 +487,12 @@ def chat_with_project(
                 "recording_id": t.recording_id
             })
     
+    # Project Documents
+    docs = db.query(ProjectDocument).filter(ProjectDocument.project_id == project_id).all()
+    for doc in docs:
+        if doc.gemini_file_uri:
+            file_uris.append(doc.gemini_file_uri)
+
     # Load Chat History for Context
     # Limit to last 20 messages to fit context
     history_msgs = db.query(ChatMessage).filter(ChatMessage.session_id == session_id).order_by(ChatMessage.created_at.asc()).all()

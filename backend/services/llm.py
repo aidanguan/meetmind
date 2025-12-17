@@ -55,6 +55,30 @@ class LLMService:
             print(f"Error uploading to Gemini: {e}")
             return None
 
+    def upload_file_path_to_gemini(self, file_path: str, mime_type: str = None, display_name: str = None) -> Optional[str]:
+        """
+        Uploads a local file to Gemini Files API.
+        Returns the File URI.
+        """
+        if not self.use_google:
+            print("Google API Key not configured, skipping upload.")
+            return None
+
+        try:
+            print(f"Uploading file to Gemini: {display_name or file_path}")
+            file = genai.upload_file(path=file_path, mime_type=mime_type, display_name=display_name)
+            
+            # Wait for processing if necessary (usually fast for text/docs)
+            # active_file = genai.get_file(file.name)
+            # while active_file.state.name == "PROCESSING":
+            #     time.sleep(1)
+            #     active_file = genai.get_file(file.name)
+
+            return file.uri
+        except Exception as e:
+            print(f"Error uploading to Gemini: {e}")
+            return None
+
     def chat_with_files(self, messages: list, file_uris: List[str], stream: bool = True):
         """
         Chat with Gemini using uploaded files as context.
@@ -117,24 +141,37 @@ class LLMService:
 
             # Prepare the current message content with files
             current_parts = []
+            
+            # Add files to parts
             for uri in file_uris:
-                 # The URI format is like: https://generativelanguage.googleapis.com/v1beta/files/c450...
-                 # The SDK genai.get_file(name) takes the name `files/NAME`.
-                 # We need to extract name from URI or just use the URI if we can convert it to a file object wrapper.
-                 
                  # Extract 'files/XXX' from URI
                  try:
+                     # Gemini URI format: https://generativelanguage.googleapis.com/v1beta/files/c450...
                      if "/files/" in uri:
                          file_name = "files/" + uri.split("/files/")[-1]
+                         
+                         # Check if it's a valid MIME type for Gemini
+                         # Gemini supports images, audio, video, PDF, and plain text.
+                         # It does NOT support raw Office formats (docx, pptx, xlsx) directly via URI usually unless converted.
+                         # However, if we uploaded it via File API, it should be fine IF the mime_type was supported during upload.
+                         # If we uploaded a pptx as application/vnd... and Gemini accepted it, can we use it in chat?
+                         # 
+                         # Actually, Gemini API recently added support for PDF and text. 
+                         # Complex docs (doc, ppt) might need to be converted to PDF or text first.
+                         # But the error "Unsupported MIME type" comes from the model when receiving the file part.
+                         #
+                         # Workaround: If we know it's a document that might be problematic, 
+                         # we should have converted it or extracted text.
+                         # But since we are here, we try to use it.
+                         
                          file_ref = genai.get_file(file_name)
                          current_parts.append(file_ref)
                      else:
-                         # Fallback if URI format is different or just a name
-                         # Assuming it might be just the name or full URI
                          print(f"Warning: Unexpected URI format: {uri}")
                  except Exception as file_err:
                      print(f"Error fetching file ref for {uri}: {file_err}")
 
+            # Add text content
             current_parts.append(last_user_content)
 
             chat = model.start_chat(history=gemini_history)
